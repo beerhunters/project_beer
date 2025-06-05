@@ -89,25 +89,33 @@ async def beer_choice_callback(callback_query: types.CallbackQuery):
 
             # Получаем статистику пользователя
             user_stats = await BeerRepository.get_user_beer_stats(session, user.id)
+            if user_stats:
+                beer_names = {
+                    BeerTypeEnum.LAGER.value: "🍺 Lager",
+                    BeerTypeEnum.HAND_OF_GOD.value: "🍻 Hand of God",
+                }
 
-            beer_names = {
-                BeerTypeEnum.LAGER.value: "🍺 Lager",
-                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Hand of God",
-            }
+                selected_beer = beer_names[beer_type.value]
 
-            selected_beer = beer_names[beer_type.value]
+                stats_text = "📊 Твоя статистика:\n"
+                for beer_name, count in user_stats.items():
+                    stats_text += f"{beer_names.get(beer_name, beer_name)}: {count}\n"
+                await callback_query.message.edit_text(
+                    f"✅ Отличный выбор! Ты выбрал {selected_beer}\n\n"
+                    f"{stats_text}\n"
+                    "🔄 /beer - выбрать еще раз\n"
+                    "📊 /stats - общая статистика\n"
+                    "👤 /profile - мой профиль"
+                )
+            else:
+                stats_text = "📊 У тебя пока нет статистики по выбору пива.\n"
 
-            stats_text = "📊 Твоя статистика:\n"
-            for beer_name, count in user_stats.items():
-                stats_text += f"{beer_names.get(beer_name, beer_name)}: {count}\n"
-
-            await callback_query.message.edit_text(
-                f"✅ Отличный выбор! Ты выбрал {selected_beer}\n\n"
-                f"{stats_text}\n"
-                "🔄 /beer - выбрать еще раз\n"
-                "📊 /stats - общая статистика\n"
-                "👤 /profile - мой профиль"
-            )
+                await callback_query.message.edit_text(
+                    f"{stats_text}\n"
+                    "🔄 /beer - выбрать еще раз\n"
+                    "📊 /stats - общая статистика\n"
+                    "👤 /profile - мой профиль"
+                )
 
     except Exception as e:
         logger.error(f"Error in beer choice callback: {e}")

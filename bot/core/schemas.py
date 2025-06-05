@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from datetime import date, datetime
 from typing import Optional, List
 from bot.core.models import BeerTypeEnum
+from pydantic import validator
+import pendulum
 
 
 class UserCreate(BaseModel):
@@ -12,6 +14,20 @@ class UserCreate(BaseModel):
     )
     name: str = Field(..., min_length=1, max_length=50, description="User display name")
     birth_date: date = Field(..., description="User birth date")
+
+    @validator("birth_date")
+    def validate_birth_date(cls, value):
+        today = pendulum.now().date()
+        age = (
+            today.year
+            - value.year
+            - ((today.month, today.day) < (value.month, value.day))
+        )
+        if age < 18:
+            raise ValueError("User must be at least 18 years old")
+        if value > today:
+            raise ValueError("Birth date cannot be in the future")
+        return value
 
 
 class UserUpdate(BaseModel):

@@ -48,6 +48,17 @@ async def init_db():
     """Инициализация БД - создание всех таблиц"""
     try:
         async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    """
+                        DO $$ BEGIN
+                            CREATE TYPE beer_type_enum AS ENUM ('LAGER', 'HAND_OF_GOD');
+                        EXCEPTION
+                            WHEN duplicate_object THEN null;
+                        END $$;
+                    """
+                )
+            )
             # Импортируем модели для создания таблиц
             from bot.core.models import User, BeerChoice
 
