@@ -1,4 +1,3 @@
-# bot/core/models.py
 from sqlalchemy import (
     Column,
     Integer,
@@ -20,13 +19,12 @@ class BeerTypeEnum(enum.Enum):
     HAND_OF_GOD = "HAND_OF_GOD"
 
 
-# Создание PostgreSQL ENUM типа
-BeerType = PgEnum(BeerTypeEnum, name="beer_type_enum", create_type=False)
+# Изменено: create_type=False на create_type=True
+BeerType = PgEnum(BeerTypeEnum, name="beer_type_enum", create_type=True)
 
 
 class User(Base):
     __tablename__ = "users"
-
     id = Column(Integer, primary_key=True, index=True)
     telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
     username = Column(String(32), nullable=True)
@@ -36,8 +34,6 @@ class User(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Связи
     choices = relationship(
         "BeerChoice", back_populates="user", cascade="all, delete-orphan"
     )
@@ -50,16 +46,13 @@ class User(Base):
 
 class BeerChoice(Base):
     __tablename__ = "beer_choices"
-
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     beer_type = Column(BeerType, nullable=False)
     selected_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Связи
     user = relationship("User", back_populates="choices")
 
     def __repr__(self):
-        return f"<BeerChoice(id={self.id}, user_id={self.user_id}, beer_type='{self.beer_type}')>"
+        return f"<BeerChoice(id={self.id}, user_id={self.user_id}, beer_type='{self.beer_type.value if isinstance(self.beer_type, enum.Enum) else self.beer_type}')>"

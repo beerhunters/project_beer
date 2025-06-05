@@ -1,6 +1,5 @@
-# bot/repositories/beer_repo.py
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
@@ -11,14 +10,17 @@ logger = logging.getLogger(__name__)
 
 
 class BeerRepository:
-
     @staticmethod
     async def create_choice(
         session: AsyncSession, choice_data: BeerChoiceCreate
     ) -> BeerChoice:
-        """Создание выбора пива"""
         try:
-            choice = BeerChoice(**choice_data.model_dump())
+            # Убедимся, что beer_type это значение Enum, а не сам Enum объект, если pydantic это уже не сделал
+            db_choice_data = choice_data.model_dump()
+            if isinstance(db_choice_data["beer_type"], BeerTypeEnum):
+                db_choice_data["beer_type"] = db_choice_data["beer_type"].value
+
+            choice = BeerChoice(**db_choice_data)
             session.add(choice)
             await session.commit()
             await session.refresh(choice)
@@ -35,7 +37,6 @@ class BeerRepository:
     async def get_user_choices(
         session: AsyncSession, user_id: int, offset: int = 0, limit: int = 50
     ) -> List[BeerChoice]:
-        """Получение выборов пива пользователя с пагинацией"""
         try:
             stmt = (
                 select(BeerChoice)
@@ -55,7 +56,6 @@ class BeerRepository:
     async def get_latest_user_choice(
         session: AsyncSession, user_id: int
     ) -> Optional[BeerChoice]:
-        """Получение последнего выбора пива пользователя"""
         try:
             stmt = (
                 select(BeerChoice)
@@ -71,24 +71,24 @@ class BeerRepository:
             raise
 
     @staticmethod
-    async def get_beer_stats(session: AsyncSession) -> dict:
-        """Получение статистики по типам пива"""
+    async def get_beer_stats(session: AsyncSession) -> Dict[str, int]:
         try:
             stmt = select(
                 BeerChoice.beer_type, func.count(BeerChoice.id).label("count")
             ).group_by(BeerChoice.beer_type)
             result = await session.execute(stmt)
             stats = {}
-            for row in result:
-                stats[row.beer_type.value] = row.count
+            for row in result:  # row.beer_type будет значением Enum из БД (строкой)
+                stats[row.beer_type] = row.count
             return stats
         except Exception as e:
             logger.error(f"Error getting beer stats: {e}")
             raise
 
     @staticmethod
-    async def get_user_beer_stats(session: AsyncSession, user_id: int) -> dict:
-        """Получение статистики по типам пива для конкретного пользователя"""
+    async def get_user_beer_stats(
+        session: AsyncSession, user_id: int
+    ) -> Dict[str, int]:
         try:
             stmt = (
                 select(BeerChoice.beer_type, func.count(BeerChoice.id).label("count"))
@@ -97,8 +97,8 @@ class BeerRepository:
             )
             result = await session.execute(stmt)
             stats = {}
-            for row in result:
-                stats[row.beer_type.value] = row.count
+            for row in result:  # row.beer_type будет значением Enum из БД (строкой)
+                stats[row.beer_type] = row.count
             return stats
         except Exception as e:
             logger.error(f"Error getting beer stats for user_id {user_id}: {e}")
@@ -108,7 +108,6 @@ class BeerRepository:
     async def get_all_choices(
         session: AsyncSession, offset: int = 0, limit: int = 100
     ) -> List[BeerChoice]:
-        """Получение всех выборов с пагинацией"""
         try:
             stmt = (
                 select(BeerChoice)
@@ -126,14 +125,13 @@ class BeerRepository:
 
     @staticmethod
     async def delete_user_choices(session: AsyncSession, user_id: int) -> int:
-        """Удаление всех выборов пользователя"""
         try:
             stmt = delete(BeerChoice).where(BeerChoice.user_id == user_id)
             result = await session.execute(stmt)
             await session.commit()
             deleted_count = result.rowcount
             logger.info(f"Deleted {deleted_count} choices for user_id {user_id}")
-            return deleted_count
+            return deleted_count if deleted_count is not None else 0
         except Exception as e:
             logger.error(f"Error deleting choices for user_id {user_id}: {e}")
             await session.rollback()

@@ -1,4 +1,3 @@
-# bot/core/schemas.py
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import date, datetime
 from typing import Optional, List
@@ -38,7 +37,6 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: int
     telegram_id: int
     username: Optional[str]
@@ -55,7 +53,6 @@ class BeerChoiceCreate(BaseModel):
 
 class BeerChoiceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: int
     user_id: int
     beer_type: BeerTypeEnum

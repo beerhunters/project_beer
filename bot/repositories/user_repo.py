@@ -1,4 +1,3 @@
-# bot/repositories/user_repo.py
 import logging
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,10 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class UserRepository:
-
     @staticmethod
     async def create_user(session: AsyncSession, user_data: UserCreate) -> User:
-        """Создание нового пользователя"""
         try:
             user = User(**user_data.model_dump())
             session.add(user)
@@ -31,7 +28,6 @@ class UserRepository:
     async def get_user_by_telegram_id(
         session: AsyncSession, telegram_id: int
     ) -> Optional[User]:
-        """Получение пользователя по Telegram ID"""
         try:
             stmt = select(User).where(User.telegram_id == telegram_id)
             result = await session.execute(stmt)
@@ -43,7 +39,6 @@ class UserRepository:
 
     @staticmethod
     async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[User]:
-        """Получение пользователя по ID"""
         try:
             stmt = select(User).where(User.id == user_id)
             result = await session.execute(stmt)
@@ -54,10 +49,9 @@ class UserRepository:
             raise
 
     @staticmethod
-    async def get_user_with_choices(
+    async def get_user_with_choices(  # Этот метод может быть полезен, если нужно сразу и пользователя и его выборы без доп. запросов
         session: AsyncSession, telegram_id: int
     ) -> Optional[User]:
-        """Получение пользователя с его выборами пива"""
         try:
             stmt = (
                 select(User)
@@ -75,25 +69,33 @@ class UserRepository:
     async def update_user(
         session: AsyncSession, telegram_id: int, user_data: UserUpdate
     ) -> Optional[User]:
-        """Обновление данных пользователя"""
         try:
-            update_data = {
-                k: v for k, v in user_data.model_dump().items() if v is not None
-            }
-            if not update_data:
+            update_values = user_data.model_dump(
+                exclude_unset=True
+            )  # exclude_unset=True лучше подходит для частичных обновлений
+            if not update_values:
                 return await UserRepository.get_user_by_telegram_id(
                     session, telegram_id
                 )
-
             stmt = (
                 update(User)
                 .where(User.telegram_id == telegram_id)
-                .values(**update_data)
+                .values(**update_values)
+                .returning(
+                    User
+                )  # Можно сразу вернуть обновленного пользователя, если БД поддерживает
             )
-            await session.execute(stmt)
+            result = await session.execute(stmt)
             await session.commit()
-
-            return await UserRepository.get_user_by_telegram_id(session, telegram_id)
+            # Если returning не поддерживается или не используется, нужно снова запросить пользователя
+            # В данном случае, проще просто закоммитить и запросить снова, как было
+            # updated_user = result.scalar_one_or_none() # если returning(User) используется
+            # if updated_user:
+            #    await session.refresh(updated_user) # Не обязательно, если данные из returning полные
+            # return updated_user
+            return await UserRepository.get_user_by_telegram_id(
+                session, telegram_id
+            )  # Как было
         except Exception as e:
             logger.error(f"Error updating user {telegram_id}: {e}")
             await session.rollback()
@@ -103,7 +105,6 @@ class UserRepository:
     async def get_all_users(
         session: AsyncSession, offset: int = 0, limit: int = 100
     ) -> List[User]:
-        """Получение всех пользователей с пагинацией"""
         try:
             stmt = (
                 select(User)
@@ -120,12 +121,11 @@ class UserRepository:
 
     @staticmethod
     async def delete_user(session: AsyncSession, telegram_id: int) -> bool:
-        """Удаление пользователя"""
         try:
             stmt = delete(User).where(User.telegram_id == telegram_id)
             result = await session.execute(stmt)
             await session.commit()
-            return result.rowcount > 0
+            return result.rowcount is not None and result.rowcount > 0
         except Exception as e:
             logger.error(f"Error deleting user {telegram_id}: {e}")
             await session.rollback()
@@ -133,10 +133,13 @@ class UserRepository:
 
     @staticmethod
     async def user_exists(session: AsyncSession, telegram_id: int) -> bool:
-        """Проверка существования пользователя"""
         try:
-            user = await UserRepository.get_user_by_telegram_id(session, telegram_id)
-            return user is not None
+            # Оптимизация: использовать select(func.count()).where(...) вместо полного объекта
+            stmt = select(func.count(User.id)).where(User.telegram_id == telegram_id)
+            result = await session.execute(stmt)
+            count = result.scalar_one()
+            return count > 0
         except Exception as e:
             logger.error(f"Error checking user exists {telegram_id}: {e}")
-            raise
+            # В случае ошибки лучше перевыбросить исключение или вернуть False, чтобы вызывающий код мог отреагировать
+            raise  # или return False, в зависимости от желаемого поведения
