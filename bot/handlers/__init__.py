@@ -1,1 +1,1 @@
-from . import start, beer_selection, profile, stats
+from . import start, beer_selection, profile

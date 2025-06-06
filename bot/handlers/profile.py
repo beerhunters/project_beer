@@ -18,9 +18,9 @@ def get_command_keyboard():
     builder.add(
         types.InlineKeyboardButton(text="🍺 Выбрать пиво", callback_data="cmd_beer")
     )
-    builder.add(
-        types.InlineKeyboardButton(text="📊 Статистика", callback_data="cmd_stats")
-    )
+    # builder.add(
+    #     types.InlineKeyboardButton(text="📊 Статистика", callback_data="cmd_stats")
+    # )
     builder.add(
         types.InlineKeyboardButton(text="🏠 В начало", callback_data="cmd_start")
     )
@@ -88,6 +88,9 @@ async def profile_handler(message: types.Message, bot: Bot):
                 profile_text += f"\n⏰ Последний выбор: {latest_beer_display_name} "
                 profile_text += f"({pendulum.instance(latest_choice.selected_at).in_timezone('Europe/Moscow').strftime('%d.%m.%Y %H:%M')})\n"
             profile_text += "\nВыбери действие:"
+            logger.info(
+                f"Profile handler fetched stats for user {user.telegram_id}: {user_stats}, latest choice: {latest_choice}"
+            )
             await bot.send_message(
                 chat_id=message.chat.id,
                 text=profile_text,
@@ -95,7 +98,7 @@ async def profile_handler(message: types.Message, bot: Bot):
                 reply_markup=get_command_keyboard(),
             )
     except Exception as e:
-        logger.error(f"Error in profile handler: {e}")
+        logger.error(f"Error in profile handler: {e}", exc_info=True)
         await bot.send_message(
             chat_id=message.chat.id,
             text="Произошла ошибка. Попробуй позже.",
@@ -165,15 +168,28 @@ async def cmd_profile_callback(callback_query: types.CallbackQuery, bot: Bot):
                 profile_text += f"\n⏰ Последний выбор: {latest_beer_display_name} "
                 profile_text += f"({pendulum.instance(latest_choice.selected_at).in_timezone('Europe/Moscow').strftime('%d.%m.%Y %H:%M')})\n"
             profile_text += "\nВыбери действие:"
-            await bot.edit_message_text(
-                chat_id=callback_query.message.chat.id,
-                message_id=callback_query.message.message_id,
-                text=profile_text,
-                parse_mode="Markdown",
-                reply_markup=get_command_keyboard(),
+            logger.info(
+                f"Profile callback fetched stats for user {user.telegram_id}: {user_stats}, latest choice: {latest_choice}"
             )
+            current_text = (
+                callback_query.message.text if callback_query.message.text else ""
+            )
+            new_markup = get_command_keyboard()
+            if (
+                current_text != profile_text
+                or callback_query.message.reply_markup != new_markup
+            ):
+                await bot.edit_message_text(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=callback_query.message.message_id,
+                    text=profile_text,
+                    parse_mode="Markdown",
+                    reply_markup=new_markup,
+                )
+            else:
+                await callback_query.answer()  # No change needed, just acknowledge
     except Exception as e:
-        logger.error(f"Error in profile callback: {e}")
+        logger.error(f"Error in profile callback: {e}", exc_info=True)
         await bot.edit_message_text(
             chat_id=callback_query.message.chat.id,
             message_id=callback_query.message.message_id,

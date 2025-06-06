@@ -3,7 +3,7 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from bot.core.database import init_db, check_db_connection
-from bot.handlers import start, beer_selection, profile, stats
+from bot.handlers import start, beer_selection, profile
 from bot.utils.logger import setup_logger
 from dotenv import load_dotenv
 
@@ -25,12 +25,10 @@ async def main():
         await init_db()
         bot = Bot(token=bot_token)
         dp = Dispatcher(storage=MemoryStorage())
-        dp.include_routers(
-            start.router, beer_selection.router, profile.router, stats.router
-        )
+        dp.include_routers(start.router, beer_selection.router, profile.router)
+        logger.info("Bot successfully initialized and starting polling...")
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
-        logger.info("Bot successfully initialized and starting polling...")
     except Exception as e:
         logger.error(f"Critical error in main execution: {e}", exc_info=True)
 
