@@ -30,6 +30,7 @@ async def main():
         )
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
+        logger.info("Bot successfully initialized and starting polling...")
     except Exception as e:
         logger.error(f"Critical error in main execution: {e}", exc_info=True)
 

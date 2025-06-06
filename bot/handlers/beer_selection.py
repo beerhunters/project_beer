@@ -65,6 +65,75 @@ async def beer_selection_handler(message: types.Message, bot: Bot):
         )
 
 
+# @router.callback_query(lambda c: c.data.startswith("beer_"))
+# async def beer_choice_callback(callback_query: types.CallbackQuery, bot: Bot):
+#     try:
+#         await callback_query.answer()
+#         beer_type_map = {
+#             "beer_lager": BeerTypeEnum.LAGER,
+#             "beer_hand_of_god": BeerTypeEnum.HAND_OF_GOD,
+#         }
+#         beer_type = beer_type_map.get(callback_query.data)
+#         if not beer_type:
+#             await bot.edit_message_text(
+#                 chat_id=callback_query.message.chat.id,
+#                 message_id=callback_query.message.message_id,
+#                 text="❌ Неизвестный тип пива!",
+#                 reply_markup=get_command_keyboard(),
+#             )
+#             return
+#         async for session in get_async_session():
+#             user = await UserRepository.get_user_by_telegram_id(
+#                 session, callback_query.from_user.id
+#             )
+#             if not user:
+#                 await bot.edit_message_text(
+#                     text="❌ Пользователь не найден!\n"
+#                     f"Используй команду /start для регистрации.",
+#                     chat_id=callback_query.message.chat.id,
+#                     message_id=callback_query.message.message_id,
+#                     reply_markup=get_command_keyboard(),
+#                 )
+#                 return
+#             choice_data = BeerChoiceCreate(user_id=user.id, beer_type=beer_type)
+#             await BeerRepository.create_choice(session, choice_data)
+#             user_stats = await BeerRepository.get_user_beer_stats(session, user.id)
+#             beer_names = {
+#                 BeerTypeEnum.LAGER.value: "🍺 Lager",
+#                 BeerTypeEnum.HAND_OF_GOD.value: "🍻 Hand of God",
+#             }
+#             selected_beer_display_name = beer_names.get(
+#                 beer_type.value, beer_type.value
+#             )
+#             message_text = (
+#                 f"✅ Отличный выбор! Ты выбрал {selected_beer_display_name}\n\n"
+#             )
+#             if user_stats:
+#                 stats_lines = ["📊 Твоя статистика:"]
+#                 for db_beer_type_value, count in user_stats.items():
+#                     display_name = beer_names.get(
+#                         db_beer_type_value, db_beer_type_value
+#                     )
+#                     stats_lines.append(f"{display_name}: {count}")
+#                 message_text += "\n".join(stats_lines) + "\n"
+#             else:
+#                 message_text += "📊 У тебя пока нет статистики по выбору пива.\n"
+#             message_text += "\n"
+#             message_text += "\nВыбери действие:"
+#             await bot.edit_message_text(
+#                 message_id=callback_query.message_id,
+#                 text=message_text,
+#                 chat_id=callback_query.message.chat_id,
+#                 reply_markup=get_command_keyboard(),
+#             )
+#     except Exception as e:
+#         logger.error(f"Error in beer choice callback: {e}")
+#         await bot.edit_message_text(
+#             text="Произошла ошибка. Попробуй позже.",
+#             chat_id=callback_query.message.chat.id,
+#             message_id=callback_query.message.message_id,
+#             reply_markup=get_command_keyboard(),
+#         )
 @router.callback_query(lambda c: c.data.startswith("beer_"))
 async def beer_choice_callback(callback_query: types.CallbackQuery, bot: Bot):
     try:
@@ -121,7 +190,7 @@ async def beer_choice_callback(callback_query: types.CallbackQuery, bot: Bot):
             message_text += "\n"
             message_text += "\nВыбери действие:"
             await bot.edit_message_text(
-                message_id=callback_query.message_id,
+                message_id=callback_query.message.message_id,
                 text=message_text,
                 chat_id=callback_query.message.chat_id,
                 reply_markup=get_command_keyboard(),
