@@ -1,11 +1,11 @@
-import logging
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
 import os
 from typing import AsyncGenerator
+from bot.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 Base = declarative_base()
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql+asyncpg://bot_user:bot_password@postgres:5432/beer_bot"
@@ -37,14 +37,9 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     try:
         async with engine.begin() as conn:
-            # Удалена строка: await conn.execute(text())
-            from bot.core.models import (
-                User,
-                BeerChoice,
-            )  # Импорты здесь для избежания циклических зависимостей при инициализации
+            from bot.core.models import User, BeerChoice
 
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created successfully")
     except Exception as e:
         logger.error(f"Error creating database tables: {e}")
         raise
@@ -54,7 +49,6 @@ async def check_db_connection():
     try:
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info("Database connection successful")
         return True
     except Exception as e:
         logger.error(f"Database connection failed: {e}")

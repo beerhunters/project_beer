@@ -6,10 +6,11 @@ services:
       POSTGRES_DB: beer_bot
       POSTGRES_USER: bot_user
       POSTGRES_PASSWORD: bot_password
+      TZ: Europe/Moscow  # Set PostgreSQL server timezone to UTC+3
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "127.0.0.1:5432:5432" # Рекомендуется биндить на localhost для безопасности, если не нужен внешний доступ
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bot_user -d beer_bot"]
       interval: 10s
@@ -21,14 +22,16 @@ services:
     build: .
     container_name: beer_bot
     environment:
-      BOT_TOKEN: ${BOT_TOKEN} # Убедитесь, что переменная BOT_TOKEN доступна при запуске docker-compose
+      BOT_TOKEN: ${BOT_TOKEN}
       DATABASE_URL: postgresql+asyncpg://bot_user:bot_password@postgres:5432/beer_bot
-      LOG_LEVEL: INFO
+      LOG_LEVEL: ERROR
+      LOG_FILE: ${LOG_FILE:-bot.log}
+      TZ: Europe/Moscow  # Set bot container timezone to UTC+3
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ./logs:/app/logs # Убедитесь, что директория ./logs существует на хосте или создается Dockerfile
+      - ./logs:/app/bash
     networks:
       - bot_network
     restart: unless-stopped

@@ -16,7 +16,7 @@ class UserCreate(BaseModel):
 
     @validator("birth_date")
     def validate_birth_date(cls, value):
-        today = pendulum.now().date()
+        today = pendulum.now("Europe/Moscow").date()
         age = (
             today.year
             - value.year

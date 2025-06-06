@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.orm import relationship
 from bot.core.database import Base
 import enum
+import pendulum
 
 
 class BeerTypeEnum(enum.Enum):
@@ -19,7 +20,6 @@ class BeerTypeEnum(enum.Enum):
     HAND_OF_GOD = "HAND_OF_GOD"
 
 
-# Изменено: create_type=False на create_type=True
 BeerType = PgEnum(BeerTypeEnum, name="beer_type_enum", create_type=True)
 
 

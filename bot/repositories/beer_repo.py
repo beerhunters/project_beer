@@ -1,13 +1,13 @@
-import logging
 from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
-from bot.core.models import BeerChoice, User, BeerTypeEnum
-from bot.core.schemas import BeerChoiceCreate, BeerChoiceResponse
+from bot.core.models import BeerChoice, BeerTypeEnum
+from bot.core.schemas import BeerChoiceCreate
+from bot.utils.logger import setup_logger
 import enum
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class BeerRepository:
@@ -16,18 +16,13 @@ class BeerRepository:
         session: AsyncSession, choice_data: BeerChoiceCreate
     ) -> BeerChoice:
         try:
-            # Убедимся, что beer_type это значение Enum, а не сам Enum объект, если pydantic это уже не сделал
             db_choice_data = choice_data.model_dump()
             if isinstance(db_choice_data["beer_type"], BeerTypeEnum):
                 db_choice_data["beer_type"] = db_choice_data["beer_type"].value
-
             choice = BeerChoice(**db_choice_data)
             session.add(choice)
             await session.commit()
             await session.refresh(choice)
-            logger.info(
-                f"Beer choice created: user_id={choice.user_id}, beer_type={choice.beer_type}"
-            )
             return choice
         except Exception as e:
             logger.error(f"Error creating beer choice: {e}")
@@ -80,7 +75,6 @@ class BeerRepository:
             result = await session.execute(stmt)
             stats = {}
             for row in result:
-                # Преобразуем значение BeerTypeEnum в строку с помощью .value
                 beer_type_value = (
                     row.beer_type.value
                     if isinstance(row.beer_type, enum.Enum)
@@ -104,8 +98,7 @@ class BeerRepository:
             )
             result = await session.execute(stmt)
             stats = {}
-            for row in result:  # row.beer_type будет значением Enum из БД (строкой)
-                # Преобразуем значение BeerTypeEnum в строку с помощью .value
+            for row in result:
                 beer_type_value = (
                     row.beer_type.value
                     if isinstance(row.beer_type, enum.Enum)
@@ -143,7 +136,6 @@ class BeerRepository:
             result = await session.execute(stmt)
             await session.commit()
             deleted_count = result.rowcount
-            logger.info(f"Deleted {deleted_count} choices for user_id {user_id}")
             return deleted_count if deleted_count is not None else 0
         except Exception as e:
             logger.error(f"Error deleting choices for user_id {user_id}: {e}")
