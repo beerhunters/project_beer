@@ -1,5 +1,5 @@
 FROM python:3.11-slim
-ENV PYTHONUNBUFFERED=1 # Рекомендуется для логов в Docker
+ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 # Установка системных зависимостей
 RUN apt-get update && apt-get install -y \

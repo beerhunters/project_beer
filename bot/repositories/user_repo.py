@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func
 from sqlalchemy.orm import selectinload
 from bot.core.models import User
 from bot.core.schemas import UserCreate, UserUpdate, UserResponse, UserWithChoices

@@ -5,6 +5,7 @@ from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
 from bot.core.models import BeerChoice, User, BeerTypeEnum
 from bot.core.schemas import BeerChoiceCreate, BeerChoiceResponse
+import enum
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +79,14 @@ class BeerRepository:
             ).group_by(BeerChoice.beer_type)
             result = await session.execute(stmt)
             stats = {}
-            for row in result:  # row.beer_type будет значением Enum из БД (строкой)
-                stats[row.beer_type] = row.count
+            for row in result:
+                # Преобразуем значение BeerTypeEnum в строку с помощью .value
+                beer_type_value = (
+                    row.beer_type.value
+                    if isinstance(row.beer_type, enum.Enum)
+                    else row.beer_type
+                )
+                stats[beer_type_value] = row.count
             return stats
         except Exception as e:
             logger.error(f"Error getting beer stats: {e}")
@@ -98,7 +105,13 @@ class BeerRepository:
             result = await session.execute(stmt)
             stats = {}
             for row in result:  # row.beer_type будет значением Enum из БД (строкой)
-                stats[row.beer_type] = row.count
+                # Преобразуем значение BeerTypeEnum в строку с помощью .value
+                beer_type_value = (
+                    row.beer_type.value
+                    if isinstance(row.beer_type, enum.Enum)
+                    else row.beer_type
+                )
+                stats[beer_type_value] = row.count
             return stats
         except Exception as e:
             logger.error(f"Error getting beer stats for user_id {user_id}: {e}")

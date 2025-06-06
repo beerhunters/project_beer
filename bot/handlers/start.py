@@ -1,9 +1,12 @@
 import logging
 from aiogram import Router, types
 from aiogram.filters import CommandStart
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from bot.core.database import get_async_session
+from bot.core.models import BeerTypeEnum
+from bot.repositories.beer_repo import BeerRepository
 from bot.repositories.user_repo import UserRepository
 from bot.core.schemas import UserCreate
 from datetime import datetime  # Не используется напрямую, pendulum используется
@@ -110,3 +113,41 @@ async def process_birth_date(message: types.Message, state: FSMContext):
     except Exception as e:
         logger.error(f"Error processing birth date: {e}")
         await message.answer("Произошла ошибка при регистрации. Попробуй позже.")
+
+
+@router.message(Command("stats"))
+async def stats_handler(message: types.Message):
+    try:
+        async for session in get_async_session():
+            user = await UserRepository.get_user_by_telegram_id(
+                session, message.from_user.id
+            )
+            if not user:
+                await message.answer(
+                    "❌ Ты не зарегистрирован!\n"
+                    "Используй команду /start для регистрации."
+                )
+                return
+
+            beer_stats = await BeerRepository.get_beer_stats(session)
+
+            beer_names = {
+                BeerTypeEnum.LAGER.value: "🍺 Lager",
+                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Hand of God",
+            }
+
+            text = "📊 Общая статистика выбора пива:\n\n"
+
+            if beer_stats:
+                for beer_type_value, count in beer_stats.items():
+                    display_name = beer_names.get(beer_type_value, beer_type_value)
+                    text += f"{display_name}: {count} раз(а)\n"
+            else:
+                text += "Пока никто ничего не выбрал."
+
+            text += "\n🔄 /beer - выбрать пиво\n" "👤 /profile - мой профиль"
+
+            await message.answer(text)
+    except Exception as e:
+        logger.error(f"Error in stats handler: {e}")
+        await message.answer("Произошла ошибка при получении статистики.")

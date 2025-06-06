@@ -6,6 +6,7 @@ from bot.repositories.user_repo import UserRepository
 from bot.repositories.beer_repo import BeerRepository
 from bot.core.models import BeerTypeEnum
 import pendulum
+import enum
 
 logger = logging.getLogger(__name__)
 router = Router()
