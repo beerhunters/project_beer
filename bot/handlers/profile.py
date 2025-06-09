@@ -18,9 +18,6 @@ def get_command_keyboard():
     builder.add(
         types.InlineKeyboardButton(text="🍺 Выбрать пиво", callback_data="cmd_beer")
     )
-    # builder.add(
-    #     types.InlineKeyboardButton(text="📊 Статистика", callback_data="cmd_stats")
-    # )
     builder.add(
         types.InlineKeyboardButton(text="🏠 В начало", callback_data="cmd_start")
     )
@@ -56,8 +53,8 @@ async def profile_handler(message: types.Message, bot: Bot):
                 session, user.id
             )
             beer_names = {
-                BeerTypeEnum.LAGER.value: "🍺 Lager",
-                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Hand of God",
+                BeerTypeEnum.LAGER.value: "🍺 Лагер",
+                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Рука бога",
             }
             profile_text = f"👤 **Твой профиль**\n\n"
             profile_text += f"📛 Имя: {user.name}\n"
@@ -136,8 +133,8 @@ async def cmd_profile_callback(callback_query: types.CallbackQuery, bot: Bot):
                 session, user.id
             )
             beer_names = {
-                BeerTypeEnum.LAGER.value: "🍺 Lager",
-                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Hand of God",
+                BeerTypeEnum.LAGER.value: "🍺 Лагер",
+                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Рука бога",
             }
             profile_text = f"👤 **Твой профиль**\n\n"
             profile_text += f"📛 Имя: {user.name}\n"

@@ -14,9 +14,6 @@ router = Router()
 
 def get_command_keyboard():
     builder = InlineKeyboardBuilder()
-    # builder.add(
-    #     types.InlineKeyboardButton(text="📊 Статистика", callback_data="cmd_stats")
-    # )
     builder.add(
         types.InlineKeyboardButton(text="👤 Профиль", callback_data="cmd_profile")
     )
@@ -43,11 +40,11 @@ async def beer_selection_handler(message: types.Message, bot: Bot):
                 return
             builder = InlineKeyboardBuilder()
             builder.add(
-                types.InlineKeyboardButton(text="🍺 Lager", callback_data="beer_lager")
+                types.InlineKeyboardButton(text="🍺 Лагер", callback_data="beer_lager")
             )
             builder.add(
                 types.InlineKeyboardButton(
-                    text="🍻 Hand of God", callback_data="beer_hand_of_god"
+                    text="🍻 Рука бога", callback_data="beer_hand_of_god"
                 )
             )
             builder.adjust(2)
@@ -103,8 +100,8 @@ async def beer_choice_callback(callback_query: types.CallbackQuery, bot: Bot):
                 session, user.id
             )
             beer_names = {
-                BeerTypeEnum.LAGER.value: "🍺 Lager",
-                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Hand of God",
+                BeerTypeEnum.LAGER.value: "🍺 Лагер",
+                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Рука бога",
             }
             selected_beer_display_name = beer_names.get(
                 beer_type.value, beer_type.value
@@ -161,11 +158,11 @@ async def cmd_beer_callback(callback_query: types.CallbackQuery, bot: Bot):
                 return
             builder = InlineKeyboardBuilder()
             builder.add(
-                types.InlineKeyboardButton(text="🍺 Lager", callback_data="beer_lager")
+                types.InlineKeyboardButton(text="🍺 Лагер", callback_data="beer_lager")
             )
             builder.add(
                 types.InlineKeyboardButton(
-                    text="🍻 Hand of God", callback_data="beer_hand_of_god"
+                    text="🍻 Рука бога", callback_data="beer_hand_of_god"
                 )
             )
             builder.add(

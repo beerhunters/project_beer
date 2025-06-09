@@ -25,9 +25,6 @@ def get_command_keyboard():
     builder.add(
         types.InlineKeyboardButton(text="🍺 Выбрать пиво", callback_data="cmd_beer")
     )
-    # builder.add(
-    #     types.InlineKeyboardButton(text="📊 Статистика", callback_data="cmd_stats")
-    # )
     builder.add(
         types.InlineKeyboardButton(text="👤 Профиль", callback_data="cmd_profile")
     )
