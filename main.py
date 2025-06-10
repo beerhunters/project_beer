@@ -6,6 +6,7 @@ from bot.core.database import init_db, check_db_connection
 from bot.handlers import start, beer_selection, profile, event_creation
 from bot.utils.logger import setup_logger
 from dotenv import load_dotenv
+from bot.tasks.bartender_notification import start_background_tasks
 
 logger = setup_logger(__name__)
 
@@ -28,6 +29,7 @@ async def main():
         dp.include_routers(
             start.router, beer_selection.router, profile.router, event_creation.router
         )
+        start_background_tasks(bot)
         logger.info("Bot successfully initialized and starting polling...")
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
