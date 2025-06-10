@@ -4,7 +4,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.core.database import get_async_session
-from bot.core.models import BeerTypeEnum
 from bot.repositories.beer_repo import BeerRepository
 from bot.repositories.user_repo import UserRepository
 from bot.core.schemas import UserCreate
@@ -57,7 +56,6 @@ async def start_handler(message: types.Message, bot: Bot, state: FSMContext):
         await bot.send_message(
             chat_id=message.chat.id,
             text="Произошла ошибка. Попробуй позже.",
-            # reply_markup=get_command_keyboard(),
         )
 
 
@@ -67,7 +65,7 @@ async def cmd_start_callback(
 ):
     try:
         await callback_query.answer()
-        await state.clear()  # Clear any FSM state to reset the user
+        await state.clear()
         async for session in get_async_session():
             user = await UserRepository.get_user_by_telegram_id(
                 session, callback_query.from_user.id
@@ -93,7 +91,6 @@ async def cmd_start_callback(
             chat_id=callback_query.message.chat.id,
             message_id=callback_query.message.message_id,
             text="Произошла ошибка. Попробуй позже.",
-            # reply_markup=get_command_keyboard(),
         )
 
 
@@ -104,7 +101,6 @@ async def process_name(message: types.Message, state: FSMContext):
         await message.bot.send_message(
             chat_id=message.chat.id,
             text="Имя должно быть от 1 до 50 символов. Попробуй еще раз:",
-            # reply_markup=get_command_keyboard(),
         )
         return
     await state.update_data(name=name)
@@ -113,7 +109,6 @@ async def process_name(message: types.Message, state: FSMContext):
         text=f"Приятно познакомиться, {name}! 😊\n"
         "Теперь укажи свою дату рождения в формате ДД.ММ.ГГГГ\n"
         "Например: 15.03.1990",
-        # reply_markup=get_command_keyboard(),
     )
     await state.set_state(RegistrationStates.waiting_for_birth_date)
 
@@ -135,14 +130,12 @@ async def process_birth_date(message: types.Message, state: FSMContext):
             await message.bot.send_message(
                 chat_id=message.chat.id,
                 text="Извини, но тебе должно быть не менее 18 лет 🔞",
-                # reply_markup=get_command_keyboard(),
             )
             return
         if birth_date > today:
             await message.bot.send_message(
                 chat_id=message.chat.id,
                 text="Дата рождения не может быть в будущем 📅",
-                # reply_markup=get_command_keyboard(),
             )
             return
         user_data = await state.get_data()
@@ -170,12 +163,10 @@ async def process_birth_date(message: types.Message, state: FSMContext):
             text="Неверный формат даты! 📅\n"
             "Используй формат ДД.ММ.ГГГГ\n"
             "Например: 15.03.1990",
-            # reply_markup=get_command_keyboard(),
         )
     except Exception as e:
         logger.error(f"Error processing birth date: {e}")
         await message.bot.send_message(
             chat_id=message.chat.id,
             text="Произошла ошибка при регистрации. Попробуй позже.",
-            # reply_markup=get_command_keyboard(),
         )

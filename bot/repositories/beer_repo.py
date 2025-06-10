@@ -2,10 +2,9 @@ from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
-from bot.core.models import BeerChoice, BeerTypeEnum
+from bot.core.models import BeerChoice
 from bot.core.schemas import BeerChoiceCreate
 from bot.utils.logger import setup_logger
-import enum
 
 logger = setup_logger(__name__)
 
@@ -16,10 +15,7 @@ class BeerRepository:
         session: AsyncSession, choice_data: BeerChoiceCreate
     ) -> BeerChoice:
         try:
-            db_choice_data = choice_data.model_dump()
-            if isinstance(db_choice_data["beer_type"], BeerTypeEnum):
-                db_choice_data["beer_type"] = db_choice_data["beer_type"].value
-            choice = BeerChoice(**db_choice_data)
+            choice = BeerChoice(**choice_data.model_dump())
             session.add(choice)
             await session.commit()
             await session.refresh(choice)
@@ -70,17 +66,10 @@ class BeerRepository:
     async def get_beer_stats(session: AsyncSession) -> Dict[str, int]:
         try:
             stmt = select(
-                BeerChoice.beer_type, func.count(BeerChoice.id).label("count")
-            ).group_by(BeerChoice.beer_type)
+                BeerChoice.beer_choice, func.count(BeerChoice.id).label("count")
+            ).group_by(BeerChoice.beer_choice)
             result = await session.execute(stmt)
-            stats = {}
-            for row in result:
-                beer_type_value = (
-                    row.beer_type.value
-                    if isinstance(row.beer_type, enum.Enum)
-                    else row.beer_type
-                )
-                stats[beer_type_value] = row.count
+            stats = {row.beer_choice: row.count for row in result}
             return stats
         except Exception as e:
             logger.error(f"Error getting beer stats: {e}")
@@ -92,19 +81,12 @@ class BeerRepository:
     ) -> Dict[str, int]:
         try:
             stmt = (
-                select(BeerChoice.beer_type, func.count(BeerChoice.id).label("count"))
+                select(BeerChoice.beer_choice, func.count(BeerChoice.id).label("count"))
                 .where(BeerChoice.user_id == user_id)
-                .group_by(BeerChoice.beer_type)
+                .group_by(BeerChoice.beer_choice)
             )
             result = await session.execute(stmt)
-            stats = {}
-            for row in result:
-                beer_type_value = (
-                    row.beer_type.value
-                    if isinstance(row.beer_type, enum.Enum)
-                    else row.beer_type
-                )
-                stats[beer_type_value] = row.count
+            stats = {row.beer_choice: row.count for row in result}
             return stats
         except Exception as e:
             logger.error(f"Error getting beer stats for user_id {user_id}: {e}")

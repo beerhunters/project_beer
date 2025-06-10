@@ -4,10 +4,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.core.database import get_async_session
 from bot.repositories.user_repo import UserRepository
 from bot.repositories.beer_repo import BeerRepository
-from bot.core.models import BeerTypeEnum
 from bot.utils.logger import setup_logger
 import pendulum
-import enum
 
 logger = setup_logger(__name__)
 router = Router()
@@ -52,10 +50,6 @@ async def profile_handler(message: types.Message, bot: Bot):
             latest_choice = await BeerRepository.get_latest_user_choice(
                 session, user.id
             )
-            beer_names = {
-                BeerTypeEnum.LAGER.value: "🍺 Лагер",
-                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Рука бога",
-            }
             profile_text = f"👤 **Твой профиль**\n\n"
             profile_text += f"📛 Имя: {user.name}\n"
             profile_text += (
@@ -69,20 +63,12 @@ async def profile_handler(message: types.Message, bot: Bot):
             profile_text += f"📅 Дата регистрации: {pendulum.instance(user.created_at).in_timezone('Europe/Moscow').strftime('%d.%m.%Y %H:%M')}\n\n"
             profile_text += "🍺 **Твои выборы пива**:\n"
             if user_stats:
-                for beer_type_value, count in user_stats.items():
-                    profile_text += f"{beer_names.get(beer_type_value, beer_type_value)}: {count} раз(а)\n"
+                for beer_choice, count in user_stats.items():
+                    profile_text += f"🍺 {beer_choice}: {count} раз(а)\n"
             else:
                 profile_text += "Ты еще не выбирал пиво!\n"
             if latest_choice:
-                latest_beer_display_name = beer_names.get(
-                    (
-                        latest_choice.beer_type.value
-                        if isinstance(latest_choice.beer_type, enum.Enum)
-                        else latest_choice.beer_type
-                    ),
-                    str(latest_choice.beer_type),
-                )
-                profile_text += f"\n⏰ Последний выбор: {latest_beer_display_name} "
+                profile_text += f"\n⏰ Последний выбор: 🍺 {latest_choice.beer_choice} "
                 profile_text += f"({pendulum.instance(latest_choice.selected_at).in_timezone('Europe/Moscow').strftime('%d.%m.%Y %H:%M')})\n"
             profile_text += "\nВыбери действие:"
             logger.info(
@@ -132,10 +118,6 @@ async def cmd_profile_callback(callback_query: types.CallbackQuery, bot: Bot):
             latest_choice = await BeerRepository.get_latest_user_choice(
                 session, user.id
             )
-            beer_names = {
-                BeerTypeEnum.LAGER.value: "🍺 Лагер",
-                BeerTypeEnum.HAND_OF_GOD.value: "🍻 Рука бога",
-            }
             profile_text = f"👤 **Твой профиль**\n\n"
             profile_text += f"📛 Имя: {user.name}\n"
             profile_text += (
@@ -149,20 +131,12 @@ async def cmd_profile_callback(callback_query: types.CallbackQuery, bot: Bot):
             profile_text += f"📅 Дата регистрации: {pendulum.instance(user.created_at).in_timezone('Europe/Moscow').strftime('%d.%m.%Y %H:%M')}\n\n"
             profile_text += "🍺 **Твои выборы пива**:\n"
             if user_stats:
-                for beer_type_value, count in user_stats.items():
-                    profile_text += f"{beer_names.get(beer_type_value, beer_type_value)}: {count} раз(а)\n"
+                for beer_choice, count in user_stats.items():
+                    profile_text += f"🍺 {beer_choice}: {count} раз(а)\n"
             else:
                 profile_text += "Ты еще не выбирал пиво!\n"
             if latest_choice:
-                latest_beer_display_name = beer_names.get(
-                    (
-                        latest_choice.beer_type.value
-                        if isinstance(latest_choice.beer_type, enum.Enum)
-                        else latest_choice.beer_type
-                    ),
-                    str(latest_choice.beer_type),
-                )
-                profile_text += f"\n⏰ Последний выбор: {latest_beer_display_name} "
+                profile_text += f"\n⏰ Последний выбор: 🍺 {latest_choice.beer_choice} "
                 profile_text += f"({pendulum.instance(latest_choice.selected_at).in_timezone('Europe/Moscow').strftime('%d.%m.%Y %H:%M')})\n"
             profile_text += "\nВыбери действие:"
             logger.info(
@@ -184,7 +158,7 @@ async def cmd_profile_callback(callback_query: types.CallbackQuery, bot: Bot):
                     reply_markup=new_markup,
                 )
             else:
-                await callback_query.answer()  # No change needed, just acknowledge
+                await callback_query.answer()
     except Exception as e:
         logger.error(f"Error in profile callback: {e}", exc_info=True)
         await bot.edit_message_text(
