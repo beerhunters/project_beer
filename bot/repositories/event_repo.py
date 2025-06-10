@@ -4,6 +4,8 @@ from sqlalchemy import select, delete, func
 from bot.core.models import Event
 from bot.core.schemas import EventCreate
 from bot.utils.logger import setup_logger
+from datetime import date
+import pendulum
 
 logger = setup_logger(__name__)
 
@@ -56,11 +58,7 @@ class EventRepository:
         session: AsyncSession, offset: int = 0, limit: int = 100
     ) -> List[Event]:
         try:
-            from datetime import datetime
-            import pendulum
-
             today = pendulum.now("Europe/Moscow").date()
-
             stmt = (
                 select(Event)
                 .where(Event.event_date >= today)
@@ -70,9 +68,27 @@ class EventRepository:
             )
             result = await session.execute(stmt)
             events = result.scalars().all()
-            return list(events)
+            return events
         except Exception as e:
             logger.error(f"Error getting upcoming events: {e}")
+            raise
+
+    @staticmethod
+    async def get_upcoming_events_by_date(
+        session: AsyncSession, date: date, limit: int = 100
+    ) -> List[Event]:
+        try:
+            stmt = (
+                select(Event)
+                .where(Event.event_date == date)
+                .order_by(Event.event_time.asc())
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            events = result.scalars().all()
+            return list(events)
+        except Exception as e:
+            logger.error(f"Error getting events for date {date}: {e}")
             raise
 
     @staticmethod

@@ -1,10 +1,12 @@
 from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, and_
 from sqlalchemy.orm import selectinload
-from bot.core.models import BeerChoice
+from bot.core.models import BeerChoice, Event
 from bot.core.schemas import BeerChoiceCreate
 from bot.utils.logger import setup_logger
+import pendulum
+from datetime import datetime, timedelta
 
 logger = setup_logger(__name__)
 
@@ -60,6 +62,48 @@ class BeerRepository:
             return choice
         except Exception as e:
             logger.error(f"Error getting latest choice for user_id {user_id}: {e}")
+            raise
+
+    @staticmethod
+    async def has_user_chosen_for_event(
+        session: AsyncSession, user_id: int, event: Event
+    ) -> bool:
+        try:
+            today = pendulum.now("Europe/Moscow").date()
+            event_start = pendulum.datetime(
+                year=today.year,
+                month=today.month,
+                day=today.day,
+                hour=event.event_time.hour,
+                minute=event.event_time.minute,
+                tz="Europe/Moscow",
+            )
+            window_start = event_start.subtract(minutes=30)
+            valid_choices = (
+                [event.beer_option_1, event.beer_option_2]
+                if event.has_beer_choice
+                else [event.beer_option_1 or "Лагер"]
+            )
+            valid_choices = [opt for opt in valid_choices if opt]
+            stmt = (
+                select(BeerChoice)
+                .where(
+                    and_(
+                        BeerChoice.user_id == user_id,
+                        BeerChoice.selected_at >= window_start,
+                        BeerChoice.selected_at <= event_start,
+                        BeerChoice.beer_choice.in_(valid_choices),
+                    )
+                )
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            choice = result.scalar_one_or_none()
+            return choice is not None
+        except Exception as e:
+            logger.error(
+                f"Error checking user choice for event {event.id}, user_id {user_id}: {e}"
+            )
             raise
 
     @staticmethod

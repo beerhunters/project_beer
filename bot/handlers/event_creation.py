@@ -12,7 +12,9 @@ import pendulum
 import os
 import re
 from datetime import time
-from sqlalchemy.exc import ProgrammingError
+from typing import Optional
+from sqlalchemy.exc import ProgrammingError, IntegrityError
+from aiogram.exceptions import TelegramAPIError
 
 logger = setup_logger(__name__)
 router = Router()
@@ -93,6 +95,7 @@ async def create_event_handler(message: types.Message, bot: Bot, state: FSMConte
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.message(EventCreationStates.waiting_for_name)
@@ -109,7 +112,7 @@ async def process_event_name(message: types.Message, bot: Bot, state: FSMContext
         await state.update_data(name=name)
         await bot.send_message(
             chat_id=message.chat.id,
-            text=f"✅ Название: {name}\n\n📅 Введите дату события в формате ДД.ММ.ГГГГ\nНапример: 15.12.2024",
+            text=f"✅ Название: {name}\n\n📅 Введите дату события в формате ДД.ММ.ГГГГ\nНапример: 15.12.2025",
             reply_markup=get_cancel_keyboard(),
         )
         await state.set_state(EventCreationStates.waiting_for_date)
@@ -120,6 +123,7 @@ async def process_event_name(message: types.Message, bot: Bot, state: FSMContext
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.message(EventCreationStates.waiting_for_date)
@@ -129,7 +133,7 @@ async def process_event_date(message: types.Message, bot: Bot, state: FSMContext
         if not re.match(r"^\d{2}\.\d{2}\.\d{4}$", date_str):
             await bot.send_message(
                 chat_id=message.chat.id,
-                text="❌ Неверный формат даты! Используйте формат ДД.ММ.ГГГГ\nНапример: 15.12.2024",
+                text="❌ Неверный формат даты! Используйте формат ДД.ММ.ГГГГ\nНапример: 15.12.2025",
                 reply_markup=get_cancel_keyboard(),
             )
             return
@@ -147,14 +151,14 @@ async def process_event_date(message: types.Message, bot: Bot, state: FSMContext
         await state.update_data(event_date=event_date)
         await bot.send_message(
             chat_id=message.chat.id,
-            text=f"✅ Дата: {event_date.strftime('%d.%m.%Y')}\n\n🕐 Введите время события в формате ЧЧ:ММ\nНапример: 18:30",
+            text=f"✅ Дата: {event_date.strftime('%d.%m.%Y')}\n\n🕐 Введите время события в формате ЧЧ:ММ\nНапример: 14:15",
             reply_markup=get_cancel_keyboard(),
         )
         await state.set_state(EventCreationStates.waiting_for_time)
     except pendulum.exceptions.ParserError:
         await bot.send_message(
             chat_id=message.chat.id,
-            text="❌ Неверный формат даты! Используйте формат ДД.ММ.ГГГГ\nНапример: 15.12.2024",
+            text="❌ Неверный формат даты! Используйте формат ДД.ММ.ГГГГ\nНапример: 15.12.2025",
             reply_markup=get_cancel_keyboard(),
         )
     except Exception as e:
@@ -164,6 +168,7 @@ async def process_event_date(message: types.Message, bot: Bot, state: FSMContext
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.message(EventCreationStates.waiting_for_time)
@@ -173,7 +178,7 @@ async def process_event_time(message: types.Message, bot: Bot, state: FSMContext
         if not re.match(r"^\d{2}:\d{2}$", time_str):
             await bot.send_message(
                 chat_id=message.chat.id,
-                text="❌ Неверный формат времени! Используйте формат ЧЧ:ММ\nНапример: 18:30",
+                text="❌ Неверный формат времени! Используйте формат ЧЧ:ММ\nНапример: 14:15",
                 reply_markup=get_cancel_keyboard(),
             )
             return
@@ -196,7 +201,7 @@ async def process_event_time(message: types.Message, bot: Bot, state: FSMContext
     except ValueError:
         await bot.send_message(
             chat_id=message.chat.id,
-            text="❌ Неверный формат времени! Используйте формат ЧЧ:ММ\nНапример: 18:30",
+            text="❌ Неверный формат времени! Используйте формат ЧЧ:ММ\nНапример: 14:15",
             reply_markup=get_cancel_keyboard(),
         )
     except Exception as e:
@@ -206,6 +211,7 @@ async def process_event_time(message: types.Message, bot: Bot, state: FSMContext
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.message(EventCreationStates.waiting_for_location)
@@ -215,14 +221,14 @@ async def process_event_location(message: types.Message, bot: Bot, state: FSMCon
         latitude = None
         longitude = None
         if input_str != "-":
-            if not re.match(r"^-?\d+(\.\d+)?,-?\d+(\.\d+)?$", input_str):
+            if not re.match(r"^-?\d+\.\d+,-?\d+\.\d+$", input_str):
                 await bot.send_message(
                     chat_id=message.chat.id,
                     text='❌ Координаты должны быть в формате "широта,долгота" (например, 59.927644, 30.308511) или "-". Попробуйте еще раз:',
                     reply_markup=get_cancel_keyboard(),
                 )
                 return
-            lat_str, lon_str = map(str.strip, input_str.split(", "))
+            lat_str, lon_str = map(str.strip, input_str.split(","))
             try:
                 latitude = float(lat_str)
                 longitude = float(lon_str)
@@ -261,6 +267,7 @@ async def process_event_location(message: types.Message, bot: Bot, state: FSMCon
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.message(EventCreationStates.waiting_for_location_name)
@@ -294,6 +301,7 @@ async def process_event_location_name(
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.message(EventCreationStates.waiting_for_description)
@@ -327,6 +335,7 @@ async def process_event_description(
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.message(EventCreationStates.waiting_for_image)
@@ -336,7 +345,7 @@ async def process_event_image(message: types.Message, bot: Bot, state: FSMContex
         if message.text and message.text.strip() == "-":
             pass
         elif message.photo:
-            image_file_id = message.photo[-1].file_id  # Use the highest resolution
+            image_file_id = message.photo[-1].file_id
         else:
             await bot.send_message(
                 chat_id=message.chat.id,
@@ -359,6 +368,7 @@ async def process_event_image(message: types.Message, bot: Bot, state: FSMContex
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.callback_query(lambda c: c.data in ["choice_yes", "choice_no"])
@@ -393,6 +403,7 @@ async def process_beer_choice(
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 @router.message(EventCreationStates.waiting_for_beer_options)
@@ -402,7 +413,7 @@ async def process_beer_options(message: types.Message, bot: Bot, state: FSMConte
         if not re.match(r"[^,]+,[^,]+", input_str):
             await bot.send_message(
                 chat_id=message.chat.id,
-                text="❌ Введите ровно два варианта пива через запятую (без лишних запятых)\nНапример: IPA, Wheat Beer",
+                text="❌ Введите ровно два варианта пива через запятую (без лишних запятых)\nНапример: Лагер, Рука Бога",
                 reply_markup=get_cancel_keyboard(),
             )
             return
@@ -426,14 +437,15 @@ async def process_beer_options(message: types.Message, bot: Bot, state: FSMConte
             text="Произошла ошибка. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+        await state.clear()
 
 
 async def finalize_event_creation(
     message: types.Message,
     bot: Bot,
     state: FSMContext,
-    beer_option_1: str | None,
-    beer_option_2: str | None,
+    beer_option_1: Optional[str],
+    beer_option_2: Optional[str],
 ):
     try:
         data = await state.get_data()
@@ -460,38 +472,64 @@ async def finalize_event_creation(
             created_by=message.from_user.id,
         )
         async for session in get_async_session():
-            event = await EventRepository.create_event(session, event_data)
-            summary = f"🎉 Событие создано!\n\n"
-            summary += f"📝 Название: {event.name}\n"
-            summary += f"📅 Дата: {event.event_date.strftime('%d.%m.%Y')}\n"
-            summary += f"🕐 Время: {event.event_time.strftime('%H:%M')}\n"
-            summary += f"📍 Место: {event.location_name or 'Не указано'}\n"
-            summary += f"📖 Описание: {event.description or 'Не указано'}\n"
-            summary += f"🖼️ Изображение: {'Есть' if event.image_file_id else 'Нет'}\n"
-            summary += f"🍺 Выбор пива: {'Да' if event.has_beer_choice else 'Нет'}\n"
-            if event.has_beer_choice and event.beer_option_1 and event.beer_option_2:
+            try:
+                event = await EventRepository.create_event(session, event_data)
+                summary = f"🎉 Событие создано!\n\n"
+                summary += f"📝 Название: {event.name}\n"
+                summary += f"📅 Дата: {event.event_date.strftime('%d.%m.%Y')}\n"
+                summary += f"🕐 Время: {event.event_time.strftime('%H:%M')}\n"
+                summary += f"📍 Место: {event.location_name or 'Не указано'}\n"
+                summary += f"📖 Описание: {event.description or 'Не указано'}\n"
                 summary += (
-                    f"🍻 Варианты: {event.beer_option_1}, {event.beer_option_2}\n"
+                    f"🖼️ Изображение: {'Есть' if event.image_file_id else 'Нет'}\n"
                 )
-            elif not event.has_beer_choice:
-                summary += f"🍺 Пиво: Лагер\n"
-            await bot.send_message(chat_id=message.chat.id, text=summary)
-            await send_event_notifications(bot, event)
-            logger.info(f"Event created: {event.id} by {message.from_user.id}")
+                summary += (
+                    f"🍺 Выбор пива: {'Да' if event.has_beer_choice else 'Нет'}\n"
+                )
+                if (
+                    event.has_beer_choice
+                    and event.beer_option_1
+                    and event.beer_option_2
+                ):
+                    summary += (
+                        f"🍻 Варианты: {event.beer_option_1}, {event.beer_option_2}\n"
+                    )
+                elif not event.has_beer_choice:
+                    summary += f"🍺 Пиво: Лагер\n"
+                await bot.send_message(chat_id=message.chat.id, text=summary)
+                await send_event_notifications(bot, event)
+                logger.info(f"Event created: {event.id} by {message.from_user.id}")
+            except IntegrityError as e:
+                logger.error(
+                    f"Database integrity error creating event: {e}", exc_info=True
+                )
+                await bot.send_message(
+                    chat_id=message.chat.id,
+                    text="❌ Ошибка: событие с такими параметрами уже существует или данные некорректны.",
+                    reply_markup=get_cancel_keyboard(),
+                )
+                return
+            except Exception as e:
+                logger.error(f"Unexpected error creating event: {e}", exc_info=True)
+                raise
         await state.clear()
     except ProgrammingError as e:
         logger.error(f"Database schema error: {e}", exc_info=True)
         await bot.send_message(
             chat_id=message.chat.id,
-            text="Ошибка базы данных. Пожалуйста, свяжитесь с администратором.",
+            text="❌ Ошибка базы данных. Пожалуйста, свяжитесь с администратором.",
+            reply_markup=get_cancel_keyboard(),
         )
     except Exception as e:
         logger.error(f"Error finalizing event creation: {e}", exc_info=True)
         await bot.send_message(
             chat_id=message.chat.id,
-            text="Произошла ошибка при создании события. Попробуйте позже.",
+            text="❌ Произошла ошибка при создании события. Попробуйте позже.",
             reply_markup=get_cancel_keyboard(),
         )
+    finally:
+        if await state.get_state():
+            await state.clear()
 
 
 async def send_event_notifications(bot: Bot, event):
@@ -506,7 +544,7 @@ async def send_event_notifications(bot: Bot, event):
                 notification_text += f"📍 {event.location_name}\n"
             if event.description:
                 notification_text += f"📖 {event.description}\n"
-            if event.has_beer_choice and event.beer_option_1 and event.beer_option_2:
+            if event.has_beer_choice:
                 notification_text += (
                     f"🍻 Варианты пива: {event.beer_option_1}, {event.beer_option_2}\n"
                 )
@@ -531,9 +569,14 @@ async def send_event_notifications(bot: Bot, event):
                             reply_markup=get_notification_keyboard(),
                         )
                     successful_sends += 1
-                except Exception as e:
+                except TelegramAPIError as e:
                     logger.warning(
                         f"Failed to send notification to user {user.telegram_id}: {e}"
+                    )
+                    failed_sends += 1
+                except Exception as e:
+                    logger.error(
+                        f"Unexpected error sending notification to user {user.telegram_id}: {e}"
                     )
                     failed_sends += 1
             logger.info(
@@ -556,7 +599,7 @@ async def cancel_event_creation(
             text="❌ Создание события отменено.",
         )
     except Exception as e:
-        logger.error(f"Error canceling event creation: {e}", exc_info=True)
+        logger.error(f"Error cancelling event creation: {e}", exc_info=True)
         await bot.edit_message_text(
             chat_id=callback_query.message.chat.id,
             message_id=callback_query.message.message_id,
