@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.core.database import get_async_session
@@ -10,10 +12,10 @@ from aiogram import Bot
 from bot.core.models import Event
 from datetime import datetime, timedelta, date
 import pendulum
-import os
 
 logger = setup_logger(__name__)
 ADMIN_TELEGRAM_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "267863612"))
+EVENT_TIMERS_FILE = "event_timers.json"
 
 
 async def count_beer_choices(
@@ -25,7 +27,7 @@ async def count_beer_choices(
             month=today.month,
             day=today.day,
             hour=event.event_time.hour,
-            minute=event.event_time.minute,  # Fixed: Use .minute to extract integer
+            minute=event.event_time.minute,
             tz="Europe/Moscow",
         )
         window_start = event_start.subtract(minutes=30)
@@ -35,9 +37,7 @@ async def count_beer_choices(
         beer_choices = await BeerRepository.get_choices_for_event(
             session, event, window_start, event_start
         )
-        # Log choices for debugging
         logger.debug(f"Found {len(beer_choices)} beer choices for event {event.id}")
-        # Count unique users to get participant count
         participant_count = len(set(choice.user_id for choice in beer_choices))
         beer_counts = {}
         valid_options = (
@@ -84,7 +84,7 @@ async def send_bartender_notification(
         raise
 
 
-async def process_event_window(bot: Bot, event: Event, today: pendulum.Date):
+async def process_event_notification(bot: Bot, event: Event):
     try:
         async for session in get_async_session():
             participant_record = (
@@ -96,7 +96,7 @@ async def process_event_window(bot: Bot, event: Event, today: pendulum.Date):
                 logger.debug(f"Event {event.id} already processed, skipping")
                 return
             participant_count, beer_counts = await count_beer_choices(
-                session, event, today
+                session, event, event.event_date
             )
             await send_bartender_notification(
                 bot, event, participant_count, beer_counts
@@ -105,58 +105,127 @@ async def process_event_window(bot: Bot, event: Event, today: pendulum.Date):
                 session, event.id, participant_count
             )
             logger.info(f"Processed event {event.id}: {participant_count} participants")
+
+            # Удаляем событие из файла
+            try:
+                if os.path.exists(EVENT_TIMERS_FILE):
+                    with open(EVENT_TIMERS_FILE, "r") as f:
+                        timers = json.load(f)
+                    timers = [t for t in timers if t["event_id"] != event.id]
+                    with open(EVENT_TIMERS_FILE, "w") as f:
+                        json.dump(timers, f, indent=2)
+                    logger.info(
+                        f"Event {event.id} removed from timers file: {EVENT_TIMERS_FILE}"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Error removing event {event.id} from timers file: {e}",
+                    exc_info=True,
+                )
     except Exception as e:
         logger.error(
-            f"Error processing event window for event {event.id}: {e}", exc_info=True
+            f"Error processing event notification for event {event.id}: {e}",
+            exc_info=True,
         )
-        raise
 
 
-async def check_event_windows(bot: Bot):
-    while True:
-        try:
-            today = pendulum.now("Europe/Moscow").date()
-            current_time = pendulum.now("Europe/Moscow").time()
-            current_dt = pendulum.datetime(
-                year=today.year,
-                month=today.month,
-                day=today.day,
-                hour=current_time.hour,
-                minute=current_time.minute,
-                second=current_time.second,
-                tz="Europe/Moscow",
+async def schedule_bartender_notification(
+    bot: Bot, event: Event, event_start: pendulum.DateTime
+):
+    try:
+        now = pendulum.now("Europe/Moscow")
+        seconds_until_event = (event_start - now).total_seconds()
+
+        logger.debug(
+            f"Scheduling notification for event {event.id}: starts in {seconds_until_event} seconds"
+        )
+
+        if seconds_until_event > 0:
+            await asyncio.sleep(seconds_until_event)
+            logger.info(f"Timer triggered for event {event.id}")
+        else:
+            logger.info(
+                f"Event {event.id} start time has passed, processing immediately"
             )
-            async for session in get_async_session():
-                events = await EventRepository.get_upcoming_events_by_date(
-                    session, today, limit=100
+
+        async for session in get_async_session():
+            event = await EventRepository.get_event_by_id(session, event.id)
+            if event:
+                await process_event_notification(bot, event)
+            else:
+                logger.warning(
+                    f"Event {event.id} not found in database, skipping notification"
                 )
-                logger.debug(
-                    f"Found {len(events)} events for {today}: {[e.id for e in events]}"
-                )
-                for event in sorted(events, key=lambda e: e.event_time):
-                    event_start = pendulum.datetime(
-                        year=today.year,
-                        month=today.month,
-                        day=today.day,
-                        hour=event.event_time.hour,
-                        minute=event.event_time.minute,
-                        tz="Europe/Moscow",
+    except Exception as e:
+        logger.error(
+            f"Error in scheduled notification for event {event.id}: {e}", exc_info=True
+        )
+
+
+async def restore_timers(bot: Bot):
+    try:
+        if not os.path.exists(EVENT_TIMERS_FILE):
+            logger.info(f"No timers file found: {EVENT_TIMERS_FILE}")
+            return
+
+        with open(EVENT_TIMERS_FILE, "r") as f:
+            timers = json.load(f)
+
+        logger.info(f"Restoring {len(timers)} event timers from file")
+
+        async for session in get_async_session():
+            for timer in timers:
+                event_id = timer["event_id"]
+                event = await EventRepository.get_event_by_id(session, event_id)
+                if not event:
+                    logger.warning(
+                        f"Event {event_id} from timers file not found in database, skipping"
                     )
-                    # Trigger only at or after event_time, within 10 seconds
-                    if event_start <= current_dt < event_start.add(seconds=10):
-                        logger.debug(
-                            f"Processing event {event.id}: current_dt={current_dt}, event_start={event_start}"
+                    continue
+
+                event_start = pendulum.datetime(
+                    year=int(timer["event_date"].split("-")[0]),
+                    month=int(timer["event_date"].split("-")[1]),
+                    day=int(timer["event_date"].split("-")[2]),
+                    hour=int(timer["event_time"].split(":")[0]),
+                    minute=int(timer["event_time"].split(":")[1]),
+                    second=int(timer["event_time"].split(":")[2]),
+                    tz="Europe/Moscow",
+                )
+
+                participant_record = (
+                    await EventParticipantRepository.get_participant_record(
+                        session, event_id
+                    )
+                )
+                if participant_record:
+                    logger.debug(
+                        f"Event {event_id} already processed, removing from timers"
+                    )
+                    try:
+                        timers = [t for t in timers if t["event_id"] != event_id]
+                        with open(EVENT_TIMERS_FILE, "w") as f:
+                            json.dump(timers, f, indent=2)
+                        logger.info(
+                            f"Event {event_id} removed from timers file: {EVENT_TIMERS_FILE}"
                         )
-                        await process_event_window(bot, event, today)
-                    else:
-                        logger.debug(
-                            f"Skipping event {event.id}: current_dt={current_dt}, event_start={event_start}"
+                    except Exception as e:
+                        logger.error(
+                            f"Error removing event {event_id} from timers file: {e}",
+                            exc_info=True,
                         )
-        except Exception as e:
-            logger.error(f"Error in check_event_windows: {e}", exc_info=True)
-        await asyncio.sleep(30)  # Check every 30 seconds
+                    continue
+
+                asyncio.create_task(
+                    schedule_bartender_notification(bot, event, event_start)
+                )
+                logger.info(
+                    f"Restored timer for event {event_id}: starts at {event_start}"
+                )
+    except Exception as e:
+        logger.error(f"Error restoring timers: {e}", exc_info=True)
 
 
 def start_background_tasks(bot: Bot):
-    asyncio.create_task(check_event_windows(bot))
+    asyncio.create_task(restore_timers(bot))
     logger.info("Background tasks started")
