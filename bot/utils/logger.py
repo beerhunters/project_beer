@@ -8,7 +8,7 @@ def setup_logger(
     name: str, log_file: str = os.getenv("LOG_FILE", "bot.log")
 ) -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     log_directory = "logs"
     if not os.path.exists(log_directory):
         os.makedirs(log_directory)
