@@ -1,5 +1,3 @@
-import asyncio
-
 from aiogram import Router, types, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -9,7 +7,6 @@ from bot.core.database import get_async_session
 from bot.repositories.user_repo import UserRepository
 from bot.repositories.event_repo import EventRepository
 from bot.core.schemas import EventCreate
-from bot.tasks.bartender_notification import schedule_bartender_notification
 from bot.utils.logger import setup_logger
 import pendulum
 import os
@@ -18,14 +15,11 @@ from datetime import time
 from typing import Optional
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 from aiogram.exceptions import TelegramAPIError
-import json
-import os
-from datetime import datetime
+from bot.tasks.celery_app import app as celery_app
 
 logger = setup_logger(__name__)
 router = Router()
 ADMIN_TELEGRAM_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "267863612"))
-EVENT_TIMERS_FILE = "event_timers.json"
 
 
 class EventCreationStates(StatesGroup):
@@ -481,31 +475,33 @@ async def finalize_event_creation(
         async for session in get_async_session():
             try:
                 event = await EventRepository.create_event(session, event_data)
-
-                # Записываем событие в файл
+                # Schedule one-time Celery task
+                event_start = pendulum.datetime(
+                    year=event.event_date.year,
+                    month=event.event_date.month,
+                    day=event.event_date.day,
+                    hour=event.event_time.hour,
+                    minute=event.event_time.minute,
+                    tz="Europe/Moscow",
+                )
                 try:
-                    timers = []
-                    if os.path.exists(EVENT_TIMERS_FILE):
-                        with open(EVENT_TIMERS_FILE, "r") as f:
-                            timers = json.load(f)
-                    timers.append(
-                        {
-                            "event_id": event.id,
-                            "event_date": event.event_date.strftime("%Y-%m-%d"),
-                            "event_time": event.event_time.strftime("%H:%M:%S"),
-                        }
+                    celery_app.send_task(
+                        "bot.tasks.bartender_notification.process_event_notification",
+                        args=(event.id,),
+                        eta=event_start.to_pydatetime(),
                     )
-                    with open(EVENT_TIMERS_FILE, "w") as f:
-                        json.dump(timers, f, indent=2)
                     logger.info(
-                        f"Event {event.id} added to timers file: {EVENT_TIMERS_FILE}"
+                        f"Scheduled Celery task for event {event.id} at {event_start}"
                     )
                 except Exception as e:
                     logger.error(
-                        f"Error writing event {event.id} to timers file: {e}",
+                        f"Failed to schedule task for event {event.id}: {e}",
                         exc_info=True,
                     )
-
+                    await bot.send_message(
+                        chat_id=message.chat.id,
+                        text="⚠️ Событие создано, но уведомление бармену не запланировано. Свяжитесь с администратором.",
+                    )
                 summary = f"🎉 Событие создано!\n\n"
                 summary += f"📝 Название: {event.name}\n"
                 summary += f"📅 Дата: {event.event_date.strftime('%d.%m.%Y')}\n"
@@ -531,20 +527,6 @@ async def finalize_event_creation(
                 await bot.send_message(chat_id=message.chat.id, text=summary)
                 await send_event_notifications(bot, event)
                 logger.info(f"Event created: {event.id} by {message.from_user.id}")
-
-                # Запускаем таймер для уведомления
-                event_start = pendulum.datetime(
-                    year=event.event_date.year,
-                    month=event.event_date.month,
-                    day=event.event_date.day,
-                    hour=event.event_time.hour,
-                    minute=event.event_time.minute,
-                    tz="Europe/Moscow",
-                )
-                asyncio.create_task(
-                    schedule_bartender_notification(bot, event, event_start)
-                )
-
             except IntegrityError as e:
                 logger.error(
                     f"Database integrity error creating event: {e}", exc_info=True

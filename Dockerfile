@@ -1,18 +1,28 @@
 FROM python:3.11-slim
-ENV PYTHONUNBUFFERED=1
+
+# Set working directory
 WORKDIR /app
-# Установка системных зависимостей
+
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
-    # psycopg2-binary может требовать libpq-dev, если используется, но здесь asyncpg
     && rm -rf /var/lib/apt/lists/*
-# Копирование requirements
+
+# Create a non-root user
+RUN useradd -m -u 1000 botuser
+
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
-# Рекомендуется использовать --no-cache-dir для уменьшения размера образа
 RUN pip install --no-cache-dir -r requirements.txt
-# Копирование кода
+
+# Copy application code
 COPY . .
-# Создание директории для логов, если она еще не создана
-RUN mkdir -p /app/logs
-# Точка входа
+
+# Set ownership and permissions
+RUN chown -R botuser:botuser /app
+
+# Switch to non-root user
+USER botuser
+
+# Default command (overridden in docker-compose.yml)
 CMD ["python", "main.py"]
