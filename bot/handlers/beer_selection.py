@@ -455,7 +455,9 @@ async def beer_choice_callback(
                 )
                 return
 
-            choice_data = BeerChoiceCreate(user_id=user.id, beer_choice=beer_choice)
+            choice_data = BeerChoiceCreate(
+                user_id=user.id, event_id=event.id, beer_choice=beer_choice
+            )
             choice = await BeerRepository.create_choice(session, choice_data)
             user_stats = await BeerRepository.get_user_beer_stats(session, user.id)
 
@@ -471,7 +473,7 @@ async def beer_choice_callback(
             message_text += "\nВыбери действие:"
 
             logger.info(
-                f"Beer choice saved for user {user.telegram_id}: {choice.beer_choice}, stats: {user_stats}"
+                f"Beer choice saved for user {user.telegram_id}: {choice.beer_choice}, event {event.id}, stats: {user_stats}"
             )
 
             await bot.edit_message_text(

@@ -40,7 +40,7 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       DATABASE_URL: postgresql+asyncpg://bot_user:bot_password@postgres:5432/beer_bot
       REDIS_URL: redis://redis:6379/0
-      LOG_LEVEL: ERROR
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FILE: ${LOG_FILE:-bot.log}
       TZ: Europe/Moscow
     depends_on:
@@ -57,12 +57,12 @@ services:
     build: .
     container_name: beer_bot_celery_worker
     user: botuser
-    command: celery -A bot.tasks.celery_app worker --loglevel=error --concurrency=2
+    command: celery -A bot.tasks.celery_app worker --loglevel=${LOG_LEVEL:-INFO} --concurrency=2
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
       DATABASE_URL: postgresql+asyncpg://bot_user:bot_password@postgres:5432/beer_bot
       REDIS_URL: redis://redis:6379/0
-      LOG_LEVEL: ERROR
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FILE: ${LOG_FILE:-celery_worker.log}
       TZ: Europe/Moscow
     depends_on:
@@ -85,12 +85,12 @@ services:
     build: .
     container_name: beer_bot_celery_beat
     user: botuser
-    command: celery -A bot.tasks.celery_app beat --loglevel=error
+    command: celery -A bot.tasks.celery_app beat --loglevel=${LOG_LEVEL:-INFO}
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
       DATABASE_URL: postgresql+asyncpg://bot_user:bot_password@postgres:5432/beer_bot
       REDIS_URL: redis://redis:6379/0
-      LOG_LEVEL: ERROR
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FILE: ${LOG_FILE:-celery_beat.log}
       TZ: Europe/Moscow
     depends_on:
@@ -112,7 +112,7 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       DATABASE_URL: postgresql+asyncpg://bot_user:bot_password@postgres:5432/beer_bot
       REDIS_URL: redis://redis:6379/0
-      LOG_LEVEL: ERROR
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FILE: ${LOG_FILE:-flower.log}
       TZ: Europe/Moscow
     depends_on:

@@ -46,18 +46,23 @@ class BeerChoice(Base):
     user_id = Column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    event_id = Column(
+        Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False
+    )
     beer_choice = Column(String(100), nullable=False)
     selected_at = Column(DateTime(timezone=True), server_default=func.now())
     user = relationship("User", back_populates="choices")
+    event = relationship("Event")  # Optional: for easier querying
     __table_args__ = (
         Index("idx_beer_choices_user_id", "user_id"),
         Index("idx_beer_choices_selected_at", "selected_at"),
         Index("idx_beer_choices_beer_choice", "beer_choice"),
         Index("idx_beer_choices_user_id_selected_at", "user_id", "selected_at"),
+        Index("idx_beer_choices_event_id", "event_id"),
     )
 
     def __repr__(self):
-        return f"<BeerChoice(id={self.id}, user_id={self.user_id}, beer_choice='{self.beer_choice}')>"
+        return f"<BeerChoice(id={self.id}, user_id={self.user_id}, event_id={self.event_id}, beer_choice='{self.beer_choice}')>"
 
 
 class Event(Base):

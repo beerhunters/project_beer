@@ -3,11 +3,10 @@ import os
 import pendulum
 import traceback
 from typing import Optional
+from logging.handlers import RotatingFileHandler
 
 
 class CustomFormatter(logging.Formatter):
-    """Custom formatter with colorized console output and detailed error info"""
-
     grey = "\x1b[38;21m"
     green = "\x1b[32;1m"
     yellow = "\x1b[33;1m"
@@ -15,7 +14,6 @@ class CustomFormatter(logging.Formatter):
     bold_red = "\x1b[41m"
     reset = "\x1b[0m"
     format_str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
     FORMATS = {
         logging.DEBUG: grey + format_str + reset,
         logging.INFO: green + format_str + reset,
@@ -46,26 +44,27 @@ class CustomFormatter(logging.Formatter):
 def setup_logger(
     name: str, log_file: str = os.getenv("LOG_FILE", "bot.log")
 ) -> logging.Logger:
-    """Set up a logger with file and optional console handlers"""
     logger = logging.getLogger(name)
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logger.setLevel(getattr(logging, log_level, logging.INFO))
-    logger.handlers = []  # Clear existing handlers
+    logger.handlers = []
 
-    # Create logs directory if it doesn't exist
     log_directory = "logs"
     if not os.path.exists(log_directory):
         os.makedirs(log_directory)
 
-    # File handler for WARNING and above
-    file_handler = logging.FileHandler(
-        os.path.join(log_directory, log_file), encoding="utf-8"
+    # File handler with rotation for ERROR level only
+    file_handler = RotatingFileHandler(
+        os.path.join(log_directory, log_file),
+        maxBytes=500000,  # 500KB
+        backupCount=5,  # Keep up to 5 backup files
+        encoding="utf-8",
     )
-    file_handler.setLevel(logging.WARNING)
+    file_handler.setLevel(logging.ERROR)  # Only log ERROR and above to file
     file_handler.setFormatter(CustomFormatter())
     logger.addHandler(file_handler)
 
-    # Console handler for the specified log level, if enabled
+    # Console handler with LOG_LEVEL from environment
     console_logging = os.getenv("CONSOLE_LOGGING", "true").lower() == "true"
     if console_logging:
         stream_handler = logging.StreamHandler()

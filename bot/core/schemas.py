@@ -46,10 +46,9 @@ class UserResponse(BaseModel):
 
 
 class BeerChoiceCreate(BaseModel):
-    user_id: int = Field(..., gt=0, description="User ID")
-    beer_choice: str = Field(
-        ..., min_length=1, max_length=100, description="Selected beer"
-    )
+    user_id: int
+    event_id: int
+    beer_choice: str
 
 
 class BeerChoiceResponse(BaseModel):
