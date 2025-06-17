@@ -53,18 +53,16 @@ def setup_logger(
     if not os.path.exists(log_directory):
         os.makedirs(log_directory)
 
-    # File handler with rotation for ERROR level only
     file_handler = RotatingFileHandler(
         os.path.join(log_directory, log_file),
-        maxBytes=500000,  # 500KB
-        backupCount=5,  # Keep up to 5 backup files
+        maxBytes=500000,
+        backupCount=5,
         encoding="utf-8",
     )
-    file_handler.setLevel(logging.ERROR)  # Only log ERROR and above to file
+    file_handler.setLevel(logging.ERROR)
     file_handler.setFormatter(CustomFormatter())
     logger.addHandler(file_handler)
 
-    # Console handler with LOG_LEVEL from environment
     console_logging = os.getenv("CONSOLE_LOGGING", "true").lower() == "true"
     if console_logging:
         stream_handler = logging.StreamHandler()
