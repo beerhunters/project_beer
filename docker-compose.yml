@@ -57,7 +57,7 @@ services:
     build: .
     container_name: beer_bot_celery_worker
     user: botuser
-    command: celery -A bot.tasks.celery_app worker --loglevel=${LOG_LEVEL:-INFO} --concurrency=2
+    command: celery -A bot.tasks.celery_app worker --loglevel=${LOG_LEVEL:-INFO} --pool=solo
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
       DATABASE_URL: postgresql+asyncpg://bot_user:bot_password@postgres:5432/beer_bot

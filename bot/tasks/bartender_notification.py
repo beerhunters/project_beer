@@ -10,6 +10,7 @@ from bot.core.models import Event
 from datetime import date
 import pendulum
 import os
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -84,12 +85,22 @@ async def send_bartender_notification(
         raise
 
 
-@shared_task
-def process_event_notification(event_id: int):
-    logger.info(f"Test task for {event_id}")
+@shared_task(bind=True, ignore_result=True)
+def process_event_notification(self, event_id: int):
+    logger.info(f"Processing notification task for event {event_id}")
     bot = None
+    loop = None
     try:
         bot = Bot(token=BOT_TOKEN)
+        # Get or create event loop for the current worker process
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
         async def run():
             async for session in get_async_session():
@@ -118,16 +129,21 @@ def process_event_notification(event_id: int):
                     f"Processed event {event_id}: {participant_count} participants"
                 )
 
-        import asyncio
-
-        asyncio.run(run())
+        # Run the async function using the managed event loop
+        loop.run_until_complete(run())
     except Exception as e:
         logger.error(
             f"Error processing event notification for event {event_id}: {e}",
             exc_info=True,
         )
+        # Retry the task if it fails
+        raise self.retry(exc=e, countdown=60)  # Retry after 60 seconds
     finally:
         if bot:
-            import asyncio
+            # Properly close the bot session without closing the event loop
+            async def close_bot():
+                await bot.session.close()
 
-            asyncio.run(bot.session.close())
+            loop.run_until_complete(close_bot())
+        # Do not close the event loop to allow reuse by other tasks
+        # loop.close() is intentionally omitted
