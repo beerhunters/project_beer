@@ -10,6 +10,7 @@ from bot.handlers import (
     event_creation,
     events_list,
     delete_event,
+    error_handler,
 )
 from bot.utils.logger import setup_logger
 from dotenv import load_dotenv
@@ -39,6 +40,7 @@ async def main():
             event_creation.router,
             events_list.router,
             delete_event.router,
+            error_handler.router,
         )
         logger.info("Bot successfully initialized and starting polling...")
         await bot.delete_webhook(drop_pending_updates=True)

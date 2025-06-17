@@ -5,4 +5,5 @@ from . import (
     event_creation,
     events_list,
     delete_event,
+    error_handler,
 )

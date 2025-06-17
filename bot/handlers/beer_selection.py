@@ -125,19 +125,23 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     return distance
 
 
-async def find_eligible_events(session, today, current_time):
+def is_event_selection_available(event, today, current_time):
+    """Проверяет, доступен ли выбор пива для события (30 минут до начала или раньше)"""
+    if event.event_date != today:
+        return False
+    current_dt = datetime.combine(today, current_time)
+    event_start = datetime.combine(today, event.event_time)
+    window_start = event_start - timedelta(minutes=30)
+    return window_start <= current_dt <= event_start
+
+
+async def get_all_upcoming_events(session, today):
+    """Получает все предстоящие события на сегодня"""
     events = await EventRepository.get_upcoming_events_by_date(
         session, today, limit=100
     )
-    current_dt = datetime.combine(today, current_time)
-    eligible_events = []
-    for event in events:
-        if event.event_date == today:
-            event_start = datetime.combine(today, event.event_time)
-            window_start = event_start - timedelta(minutes=30)
-            if window_start <= current_dt <= event_start:
-                eligible_events.append(event)
-    return eligible_events
+    # Фильтруем только сегодняшние события
+    return [event for event in events if event.event_date == today]
 
 
 @router.message(Command("beer"))
@@ -154,51 +158,26 @@ async def beer_selection_handler(message: types.Message, bot: Bot, state: FSMCon
                     reply_markup=get_command_keyboard(),
                 )
                 return
+
             today = pendulum.now("Europe/Moscow").date()
-            current_time = pendulum.now("Europe/Moscow").time()
-            eligible_events = await find_eligible_events(session, today, current_time)
-            if not eligible_events:
+            upcoming_events = await get_all_upcoming_events(session, today)
+
+            if not upcoming_events:
                 await bot.send_message(
                     chat_id=message.chat.id,
-                    text="❌ Нет подходящих событий! Выбор пива доступен за 30 минут до начала события.",
+                    text="❌ Нет доступных событий на сегодня!",
                     reply_markup=get_command_keyboard(),
                 )
                 return
-            if len(eligible_events) == 1:
-                event = eligible_events[0]
-                has_chosen = await BeerRepository.has_user_chosen_for_event(
-                    session, user.id, event
-                )
-                if has_chosen:
-                    await bot.send_message(
-                        chat_id=message.chat.id,
-                        text="❌ Ты уже выбрал пиво для этого события!",
-                        reply_markup=get_command_keyboard(event.id),
-                    )
-                    return
-                await state.update_data(event_id=event.id)
-                if event.latitude is not None and event.longitude is not None:
-                    reply_keyboard, cancel_keyboard = get_location_keyboard(event.id)
-                    await bot.send_message(
-                        chat_id=message.chat.id,
-                        text="📍 Пожалуйста, отправь свою геопозицию, чтобы подтвердить, что ты рядом с местом события.",
-                        reply_markup=reply_keyboard,
-                    )
-                    await state.set_state(BeerSelectionStates.waiting_for_location)
-                else:
-                    keyboard, _ = get_beer_choice_keyboard(event)
-                    await bot.send_message(
-                        chat_id=message.chat.id,
-                        text=f"🍺 Привет, {user.name}!\nВыбери пиво для события '{event.name}':",
-                        reply_markup=keyboard,
-                    )
-            else:
-                keyboard = get_event_selection_keyboard(eligible_events)
-                await bot.send_message(
-                    chat_id=message.chat.id,
-                    text="📅 Выбери событие для выбора пива:",
-                    reply_markup=keyboard,
-                )
+
+            # Показываем все события для выбора
+            keyboard = get_event_selection_keyboard(upcoming_events)
+            await bot.send_message(
+                chat_id=message.chat.id,
+                text="📅 Выбери событие для выбора пива:",
+                reply_markup=keyboard,
+            )
+
     except Exception as e:
         logger.error(f"Error in beer selection handler: {e}", exc_info=True)
         await bot.send_message(
@@ -215,6 +194,7 @@ async def select_event_callback(
     try:
         await callback_query.answer()
         event_id = int(callback_query.data.split("_")[2])
+
         async for session in get_async_session():
             user = await UserRepository.get_user_by_telegram_id(
                 session, callback_query.from_user.id
@@ -227,6 +207,7 @@ async def select_event_callback(
                     reply_markup=get_command_keyboard(),
                 )
                 return
+
             event = await EventRepository.get_event_by_id(session, event_id)
             if not event:
                 await bot.edit_message_text(
@@ -236,19 +217,49 @@ async def select_event_callback(
                     reply_markup=get_command_keyboard(),
                 )
                 return
+
             today = pendulum.now("Europe/Moscow").date()
             current_time = pendulum.now("Europe/Moscow").time()
-            current_dt = datetime.combine(today, current_time)
-            event_start = datetime.combine(today, event.event_time)
-            window_start = event_start - timedelta(minutes=30)
-            if not (window_start <= current_dt <= event_start):
-                await bot.edit_message_text(
-                    text="❌ Время для выбора пива для этого события истекло или еще не началось.",
-                    chat_id=callback_query.message.chat.id,
-                    message_id=callback_query.message.message_id,
-                    reply_markup=get_command_keyboard(event.id),
-                )
+
+            # Проверяем, доступен ли выбор пива для этого события
+            if not is_event_selection_available(event, today, current_time):
+                event_start = datetime.combine(today, event.event_time)
+                window_start = event_start - timedelta(minutes=30)
+                current_dt = datetime.combine(today, current_time)
+
+                if current_dt < window_start:
+                    # Событие еще не началось (больше 30 минут до начала)
+                    time_until_selection = window_start - current_dt
+                    total_seconds = int(time_until_selection.total_seconds())
+                    hours = total_seconds // 3600
+                    minutes = (total_seconds % 3600) // 60
+                    seconds = total_seconds % 60
+
+                    time_str = ""
+                    if hours > 0:
+                        time_str += f"{hours} ч. "
+                    if minutes > 0:
+                        time_str += f"{minutes} мин."
+                    elif hours == 0 and minutes == 0:
+                        time_str += f"{seconds} сек."
+
+                    await bot.edit_message_text(
+                        text=f"⏰ Выбор пива для события '{event.name}' будет доступен через {time_str}\n\nВозможность выбора предоставится за 30 минут до начала события.",
+                        chat_id=callback_query.message.chat.id,
+                        message_id=callback_query.message.message_id,
+                        reply_markup=get_command_keyboard(event.id),
+                    )
+                else:
+                    # Время для выбора истекло
+                    await bot.edit_message_text(
+                        text="❌ Время для выбора пива для этого события истекло.",
+                        chat_id=callback_query.message.chat.id,
+                        message_id=callback_query.message.message_id,
+                        reply_markup=get_command_keyboard(event.id),
+                    )
                 return
+
+            # Проверяем, не выбирал ли уже пользователь пиво для этого события
             has_chosen = await BeerRepository.has_user_chosen_for_event(
                 session, user.id, event
             )
@@ -260,7 +271,10 @@ async def select_event_callback(
                     reply_markup=get_command_keyboard(event.id),
                 )
                 return
+
             await state.update_data(event_id=event.id)
+
+            # Если требуется геопозиция
             if event.latitude is not None and event.longitude is not None:
                 reply_keyboard, cancel_keyboard = get_location_keyboard(event.id)
                 await bot.send_message(
@@ -270,6 +284,7 @@ async def select_event_callback(
                 )
                 await state.set_state(BeerSelectionStates.waiting_for_location)
             else:
+                # Сразу предлагаем выбор пива
                 keyboard, _ = get_beer_choice_keyboard(event)
                 await bot.edit_message_text(
                     text=f"🍺 Привет, {user.name}!\nВыбери пиво для события '{event.name}':",
@@ -277,6 +292,7 @@ async def select_event_callback(
                     message_id=callback_query.message.message_id,
                     reply_markup=keyboard,
                 )
+
     except Exception as e:
         logger.error(f"Error in select event callback: {e}", exc_info=True)
         await bot.edit_message_text(
@@ -298,10 +314,12 @@ async def process_user_location(message: types.Message, bot: Bot, state: FSMCont
                 reply_markup=reply_keyboard,
             )
             return
+
         user_lat = message.location.latitude
         user_lon = message.location.longitude
         data = await state.get_data()
         event_id = data.get("event_id")
+
         async for session in get_async_session():
             event = await EventRepository.get_event_by_id(session, event_id)
             if not event or event.latitude is None or event.longitude is None:
@@ -312,9 +330,11 @@ async def process_user_location(message: types.Message, bot: Bot, state: FSMCont
                 )
                 await state.clear()
                 return
+
             distance = haversine_distance(
                 user_lat, user_lon, event.latitude, event.longitude
             )
+
             if distance > 500:
                 await bot.send_message(
                     chat_id=message.chat.id,
@@ -323,10 +343,11 @@ async def process_user_location(message: types.Message, bot: Bot, state: FSMCont
                 )
                 await state.clear()
                 return
+
             user = await UserRepository.get_user_by_telegram_id(
                 session, message.from_user.id
             )
-            today = pendulum.now("Europe/Moscow").date()
+
             has_chosen = await BeerRepository.has_user_chosen_for_event(
                 session, user.id, event
             )
@@ -338,6 +359,7 @@ async def process_user_location(message: types.Message, bot: Bot, state: FSMCont
                 )
                 await state.clear()
                 return
+
             keyboard, _ = get_beer_choice_keyboard(event)
             await bot.send_message(
                 chat_id=message.chat.id,
@@ -345,6 +367,7 @@ async def process_user_location(message: types.Message, bot: Bot, state: FSMCont
                 reply_markup=keyboard,
             )
             await state.clear()
+
     except Exception as e:
         logger.error(f"Error processing user location: {e}", exc_info=True)
         await bot.send_message(
@@ -370,8 +393,10 @@ async def beer_choice_callback(
                 reply_markup=get_command_keyboard(),
             )
             return
+
         event_id = int(parts[1])
         beer_choice = parts[2]
+
         async for session in get_async_session():
             user = await UserRepository.get_user_by_telegram_id(
                 session, callback_query.from_user.id
@@ -384,6 +409,7 @@ async def beer_choice_callback(
                     reply_markup=get_command_keyboard(),
                 )
                 return
+
             event = await EventRepository.get_event_by_id(session, event_id)
             if not event:
                 await bot.edit_message_text(
@@ -393,12 +419,12 @@ async def beer_choice_callback(
                     reply_markup=get_command_keyboard(),
                 )
                 return
+
             today = pendulum.now("Europe/Moscow").date()
             current_time = pendulum.now("Europe/Moscow").time()
-            current_dt = datetime.combine(today, current_time)
-            event_start = datetime.combine(today, event.event_time)
-            window_start = event_start - timedelta(minutes=30)
-            if not (window_start <= current_dt <= event_start):
+
+            # Повторная проверка времени выбора
+            if not is_event_selection_available(event, today, current_time):
                 await bot.edit_message_text(
                     text="❌ Время для выбора пива истекло или еще не началось.",
                     chat_id=callback_query.message.chat.id,
@@ -406,6 +432,7 @@ async def beer_choice_callback(
                     reply_markup=get_command_keyboard(event_id),
                 )
                 return
+
             keyboard, valid_options = get_beer_choice_keyboard(event)
             if beer_choice not in valid_options:
                 await bot.edit_message_text(
@@ -415,6 +442,7 @@ async def beer_choice_callback(
                     reply_markup=keyboard,
                 )
                 return
+
             has_chosen = await BeerRepository.has_user_chosen_for_event(
                 session, user.id, event
             )
@@ -426,9 +454,11 @@ async def beer_choice_callback(
                     reply_markup=get_command_keyboard(event_id),
                 )
                 return
+
             choice_data = BeerChoiceCreate(user_id=user.id, beer_choice=beer_choice)
             choice = await BeerRepository.create_choice(session, choice_data)
             user_stats = await BeerRepository.get_user_beer_stats(session, user.id)
+
             message_text = f"✅ Отличный выбор! Ты выбрал 🍺 {beer_choice}\n\n"
             if user_stats:
                 stats_lines = ["📊 Твоя статистика:"]
@@ -437,16 +467,20 @@ async def beer_choice_callback(
                 message_text += "\n".join(stats_lines) + "\n"
             else:
                 message_text += "📊 У тебя пока нет статистики по выбору пива.\n"
+
             message_text += "\nВыбери действие:"
+
             logger.info(
                 f"Beer choice saved for user {user.telegram_id}: {choice.beer_choice}, stats: {user_stats}"
             )
+
             await bot.edit_message_text(
                 message_id=callback_query.message.message_id,
                 text=message_text,
                 chat_id=callback_query.message.chat.id,
                 reply_markup=get_command_keyboard(event_id),
             )
+
     except Exception as e:
         logger.error(f"Error in beer choice callback: {e}", exc_info=True)
         await bot.edit_message_text(
@@ -498,55 +532,28 @@ async def cmd_beer_callback(
                     reply_markup=get_command_keyboard(),
                 )
                 return
+
             today = pendulum.now("Europe/Moscow").date()
-            current_time = pendulum.now("Europe/Moscow").time()
-            eligible_events = await find_eligible_events(session, today, current_time)
-            if not eligible_events:
+            upcoming_events = await get_all_upcoming_events(session, today)
+
+            if not upcoming_events:
                 await bot.edit_message_text(
                     chat_id=callback_query.message.chat.id,
                     message_id=callback_query.message.message_id,
-                    text="❌ Нет подходящих событий! Выбор пива доступен за 30 минут до начала события.",
+                    text="❌ Нет доступных событий на сегодня!",
                     reply_markup=get_command_keyboard(),
                 )
                 return
-            if len(eligible_events) == 1:
-                event = eligible_events[0]
-                has_chosen = await BeerRepository.has_user_chosen_for_event(
-                    session, user.id, event
-                )
-                if has_chosen:
-                    await bot.edit_message_text(
-                        chat_id=callback_query.message.chat.id,
-                        message_id=callback_query.message.message_id,
-                        text="❌ Ты уже выбрал пиво для этого события!",
-                        reply_markup=get_command_keyboard(event.id),
-                    )
-                    return
-                await state.update_data(event_id=event.id)
-                if event.latitude is not None and event.longitude is not None:
-                    reply_keyboard, cancel_keyboard = get_location_keyboard(event.id)
-                    await bot.send_message(
-                        chat_id=callback_query.message.chat.id,
-                        text="📍 Пожалуйста, отправь свою геопозицию, чтобы подтвердить, что ты рядом с местом события.",
-                        reply_markup=reply_keyboard,
-                    )
-                    await state.set_state(BeerSelectionStates.waiting_for_location)
-                else:
-                    keyboard, _ = get_beer_choice_keyboard(event)
-                    await bot.edit_message_text(
-                        chat_id=callback_query.message.chat.id,
-                        message_id=callback_query.message.message_id,
-                        text=f"🍺 Привет, {user.name}!\nВыбери пиво для события '{event.name}':",
-                        reply_markup=keyboard,
-                    )
-            else:
-                keyboard = get_event_selection_keyboard(eligible_events)
-                await bot.edit_message_text(
-                    chat_id=callback_query.message.chat.id,
-                    message_id=callback_query.message.message_id,
-                    text="📅 Выбери событие для выбора пива:",
-                    reply_markup=keyboard,
-                )
+
+            # Показываем все события для выбора
+            keyboard = get_event_selection_keyboard(upcoming_events)
+            await bot.edit_message_text(
+                chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                text="📅 Выбери событие для выбора пива:",
+                reply_markup=keyboard,
+            )
+
     except Exception as e:
         logger.error(f"Error in cmd_beer callback: {e}", exc_info=True)
         await bot.edit_message_text(
