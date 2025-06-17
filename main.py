@@ -3,7 +3,15 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from bot.core.database import init_db, check_db_connection
-from bot.handlers import start, beer_selection, profile, event_creation
+from bot.handlers import (
+    start,
+    beer_selection,
+    profile,
+    event_creation,
+    events_list,
+    delete_event,
+    tasks_list,
+)
 from bot.utils.logger import setup_logger
 from dotenv import load_dotenv
 
@@ -26,7 +34,13 @@ async def main():
         bot = Bot(token=bot_token)
         dp = Dispatcher(storage=MemoryStorage())
         dp.include_routers(
-            start.router, beer_selection.router, profile.router, event_creation.router
+            start.router,
+            beer_selection.router,
+            profile.router,
+            event_creation.router,
+            events_list.router,
+            delete_event.router,
+            tasks_list.router,
         )
         logger.info("Bot successfully initialized and starting polling...")
         await bot.delete_webhook(drop_pending_updates=True)

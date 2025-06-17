@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.core.database import get_async_session
+from bot.core.models import Event
 from bot.repositories.user_repo import UserRepository
 from bot.repositories.event_repo import EventRepository
 from bot.core.schemas import EventCreate
@@ -16,6 +17,7 @@ from typing import Optional
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 from aiogram.exceptions import TelegramAPIError
 from bot.tasks.celery_app import app as celery_app
+from sqlalchemy import update
 
 logger = setup_logger(__name__)
 router = Router()
@@ -491,6 +493,7 @@ async def finalize_event_creation(
                     raise ValueError(
                         f"event_start is not a pendulum.DateTime: {type(event_start)}"
                     )
+                task_id = None
                 try:
                     # Primary method: manual datetime construction
                     eta = datetime(
@@ -503,12 +506,15 @@ async def finalize_event_creation(
                     )
                     if not isinstance(eta, datetime):
                         raise ValueError(f"eta is not a datetime object: {type(eta)}")
-                    celery_app.send_task(
+                    task = celery_app.send_task(
                         "bot.tasks.bartender_notification.process_event_notification",
                         args=(event.id,),
                         eta=eta,
                     )
-                    logger.info(f"Scheduled Celery task for event {event.id} at {eta}")
+                    task_id = task.id
+                    logger.info(
+                        f"Scheduled Celery task {task_id} for event {event.id} at {eta}"
+                    )
                 except Exception as e:
                     logger.error(
                         f"Failed to schedule task (primary) for event {event.id}: {e}",
@@ -517,13 +523,14 @@ async def finalize_event_creation(
                     # Fallback: try to_pydatetime()
                     try:
                         eta = event_start.to_pydatetime()
-                        celery_app.send_task(
+                        task = celery_app.send_task(
                             "bot.tasks.bartender_notification.process_event_notification",
                             args=(event.id,),
                             eta=eta,
                         )
+                        task_id = task.id
                         logger.info(
-                            f"Scheduled Celery task (to_pydatetime fallback) for event {event.id} at {eta}"
+                            f"Scheduled Celery task (to_pydatetime fallback) {task_id} for event {event.id} at {eta}"
                         )
                     except Exception as e2:
                         logger.error(
@@ -534,7 +541,18 @@ async def finalize_event_creation(
                             chat_id=message.chat.id,
                             text="⚠️ Событие создано, но уведомление бармену не запланировано. Свяжитесь с администратором.",
                         )
+                        await state.clear()
                         return
+                # Save task_id to event
+                if task_id:
+                    stmt = (
+                        update(Event)
+                        .where(Event.id == event.id)
+                        .values(celery_task_id=task_id)
+                    )
+                    await session.execute(stmt)
+                    await session.commit()
+                    logger.info(f"Saved Celery task ID {task_id} for event {event.id}")
                 summary = f"🎉 Событие создано!\n\n"
                 summary += f"📝 Название: {event.name}\n"
                 summary += f"📅 Дата: {event.event_date.strftime('%d.%m.%Y')}\n"

@@ -68,6 +68,7 @@ class Event(Base):
     beer_option_2 = Column(String(100), nullable=True)
     created_by = Column(BigInteger, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    celery_task_id = Column(String(200), nullable=True)
 
     def __repr__(self):
         return f"<Event(id={self.id}, name='{self.name}', date={self.event_date}, time={self.event_time})>"

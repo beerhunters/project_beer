@@ -37,12 +37,18 @@ class EventRepository:
 
     @staticmethod
     async def get_all_events(
-        session: AsyncSession, offset: int = 0, limit: int = 100
+        session: AsyncSession,
+        offset: int = 0,
+        limit: int = 100,
+        upcoming_only: bool = False,
+        date_from: date = None,
     ) -> List[Event]:
         try:
+            stmt = select(Event)
+            if upcoming_only and date_from:
+                stmt = stmt.where(Event.event_date >= date_from)
             stmt = (
-                select(Event)
-                .offset(offset)
+                stmt.offset(offset)
                 .limit(limit)
                 .order_by(Event.event_date.desc(), Event.event_time.desc())
             )

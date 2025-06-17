@@ -24,6 +24,7 @@ app.conf.update(
     beat_schedule={},
     beat_dburi=REDIS_URL,
     broker_connection_retry_on_startup=True,
+    result_expires=3600,  # Expire task results after 1 hour
 )
 
 logger.debug(f"Registered Celery tasks: {list(app.tasks.keys())}")
