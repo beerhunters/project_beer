@@ -11,6 +11,7 @@ from sqlalchemy import (
     Text,
     Time,
     Float,
+    Index,
 )
 from sqlalchemy.orm import relationship
 from bot.core.database import Base
@@ -31,6 +32,7 @@ class User(Base):
     choices = relationship(
         "BeerChoice", back_populates="user", cascade="all, delete-orphan"
     )
+    __table_args__ = (Index("idx_users_created_at", "created_at"),)
 
     def __repr__(self):
         return (
@@ -47,6 +49,12 @@ class BeerChoice(Base):
     beer_choice = Column(String(100), nullable=False)
     selected_at = Column(DateTime(timezone=True), server_default=func.now())
     user = relationship("User", back_populates="choices")
+    __table_args__ = (
+        Index("idx_beer_choices_user_id", "user_id"),
+        Index("idx_beer_choices_selected_at", "selected_at"),
+        Index("idx_beer_choices_beer_choice", "beer_choice"),
+        Index("idx_beer_choices_user_id_selected_at", "user_id", "selected_at"),
+    )
 
     def __repr__(self):
         return f"<BeerChoice(id={self.id}, user_id={self.user_id}, beer_choice='{self.beer_choice}')>"
@@ -69,6 +77,10 @@ class Event(Base):
     created_by = Column(BigInteger, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     celery_task_id = Column(String(200), nullable=True)
+    __table_args__ = (
+        Index("idx_events_event_date", "event_date"),
+        Index("idx_events_event_date_time", "event_date", "event_time"),
+    )
 
     def __repr__(self):
         return f"<Event(id={self.id}, name='{self.name}', date={self.event_date}, time={self.event_time})>"
@@ -82,6 +94,7 @@ class EventParticipant(Base):
     )
     participant_count = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (Index("idx_event_participants_event_id", "event_id"),)
 
     def __repr__(self):
         return f"<EventParticipant(id={self.id}, event_id={self.event_id}, participant_count={self.participant_count})>"
