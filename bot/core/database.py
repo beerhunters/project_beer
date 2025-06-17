@@ -7,14 +7,15 @@ from bot.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 Base = declarative_base()
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+asyncpg://bot_user:bot_password@postgres:5432/beer_bot"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set in environment variables")
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
-    pool_size=20,
-    max_overflow=0,
+    pool_size=10,
+    max_overflow=5,
+    pool_timeout=30,
     pool_pre_ping=True,
 )
 async_session_maker = async_sessionmaker(

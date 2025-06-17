@@ -21,7 +21,10 @@ from sqlalchemy import update
 
 logger = setup_logger(__name__)
 router = Router()
-ADMIN_TELEGRAM_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "267863612"))
+ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")
+if not ADMIN_TELEGRAM_ID:
+    raise ValueError("ADMIN_TELEGRAM_ID is not set in environment variables")
+ADMIN_TELEGRAM_ID = int(ADMIN_TELEGRAM_ID)
 
 
 class EventCreationStates(StatesGroup):
