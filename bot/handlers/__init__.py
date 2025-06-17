@@ -5,5 +5,4 @@ from . import (
     event_creation,
     events_list,
     delete_event,
-    tasks_list,
 )
