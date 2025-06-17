@@ -251,3 +251,8 @@ async def initiate_delete_event(
             text="❌ Произошла ошибка при попытке удаления события. Попробуйте позже.",
         )
         await state.clear()
+
+
+@router.message(Command("test_error"))
+async def test_error_handler(message: types.Message):
+    raise ValueError("Test error for error handler")

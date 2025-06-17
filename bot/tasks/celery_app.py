@@ -27,7 +27,5 @@ app.conf.update(
     result_expires=3600,  # Expire task results after 1 hour
 )
 
-logger.debug(f"Registered Celery tasks: {list(app.tasks.keys())}")
-
 if __name__ == "__main__":
     app.start()

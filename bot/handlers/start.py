@@ -77,7 +77,6 @@ async def cmd_start_callback(
                     text=f"👋 Привет, {user.name}!\nВыбери действие:",
                     reply_markup=get_command_keyboard(),
                 )
-                1 / 0
             else:
                 await bot.edit_message_text(
                     chat_id=callback_query.message.chat.id,
