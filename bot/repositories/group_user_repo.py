@@ -7,6 +7,7 @@ from bot.core.models import Group, GroupUser, HeroSelection, User
 from bot.utils.logger import setup_logger
 from datetime import date
 import pendulum
+import random
 
 logger = setup_logger(__name__)
 
@@ -186,36 +187,68 @@ class GroupUserRepository:
                 logger.warning(f"No users registered in group {chat_id}")
                 return None
 
-            # Выбираем случайного пользователя
-            import random
-
-            random.shuffle(group_users)
+            # Рассчитываем веса для каждого пользователя
+            weights = []
+            today = pendulum.now("Europe/Moscow").date()
             for gu in group_users:
-                # Проверяем, не был ли пользователь героем сегодня
-                stmt = select(HeroSelection).where(
-                    HeroSelection.group_id == group.id,
-                    HeroSelection.user_id == gu.user_id,
-                    HeroSelection.selection_date == selection_date,
+                # Ищем последнюю дату выбора героя для пользователя
+                stmt = (
+                    select(HeroSelection.selection_date)
+                    .where(
+                        HeroSelection.group_id == group.id,
+                        HeroSelection.user_id == gu.user_id,
+                    )
+                    .order_by(HeroSelection.selection_date.desc())
+                    .limit(1)
                 )
                 result = await session.execute(stmt)
-                if not result.scalar_one_or_none():
-                    hero_selection = HeroSelection(
-                        group_id=group.id,
-                        user_id=gu.user_id,
-                        selection_date=selection_date,
-                    )
-                    session.add(hero_selection)
-                    await session.commit()
-                    await session.refresh(hero_selection)
-                    logger.info(
-                        f"Hero selected: user_id={gu.user_id} for group {chat_id}"
-                    )
-                    return hero_selection
+                last_selection_date = result.scalar_one_or_none()
 
-            logger.warning(
-                f"No eligible users found for group {chat_id} on {selection_date}"
+                if not last_selection_date:
+                    # Пользователь никогда не был героем
+                    weight = 100
+                else:
+                    # Рассчитываем вес на основе дней с последнего выбора
+                    days_since_last = (today - last_selection_date).days
+                    weight = min(100, days_since_last * 10)  # 10 веса за день, макс 100
+                weights.append(weight)
+
+            # Выбираем героя с учётом весов
+            if sum(weights) == 0:
+                logger.warning(
+                    f"No eligible users with non-zero weight in group {chat_id}"
+                )
+                return None
+
+            selected_user = random.choices(group_users, weights=weights, k=1)[0]
+
+            # Проверяем, не был ли пользователь героем сегодня (дополнительная защита)
+            stmt = select(HeroSelection).where(
+                HeroSelection.group_id == group.id,
+                HeroSelection.user_id == selected_user.user_id,
+                HeroSelection.selection_date == selection_date,
             )
-            return None
+            result = await session.execute(stmt)
+            if result.scalar_one_or_none():
+                logger.warning(
+                    f"Selected user {selected_user.user_id} already hero for {selection_date}"
+                )
+                return None
+
+            # Создаём запись о герое
+            hero_selection = HeroSelection(
+                group_id=group.id,
+                user_id=selected_user.user_id,
+                selection_date=selection_date,
+            )
+            session.add(hero_selection)
+            await session.commit()
+            await session.refresh(hero_selection)
+            logger.info(
+                f"Hero selected: user_id={selected_user.user_id} for group {chat_id} with weights {weights}"
+            )
+            return hero_selection
+
         except Exception as e:
             logger.error(f"Error selecting hero for group {chat_id}: {e}")
             await session.rollback()

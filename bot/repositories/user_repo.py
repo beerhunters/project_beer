@@ -128,3 +128,22 @@ class UserRepository:
         except Exception as e:
             logger.error(f"Error checking user exists {telegram_id}: {e}")
             raise
+
+    @staticmethod
+    async def get_users_by_birthday(
+        session: AsyncSession, day: int, month: int
+    ) -> List[User]:
+        """Возвращает пользователей, у которых день рождения совпадает с указанным днём и месяцем."""
+        try:
+            stmt = select(User).where(
+                func.extract("day", User.birth_date) == day,
+                func.extract("month", User.birth_date) == month,
+            )
+            result = await session.execute(stmt)
+            users = result.scalars().all()
+            return list(users)
+        except Exception as e:
+            logger.error(
+                f"Error getting users by birthday day={day}, month={month}: {e}"
+            )
+            raise
