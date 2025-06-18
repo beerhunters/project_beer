@@ -38,7 +38,15 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     try:
         async with engine.begin() as conn:
-            from bot.core.models import User, BeerChoice
+            from bot.core.models import (
+                User,
+                BeerChoice,
+                Event,
+                EventParticipant,
+                Group,
+                GroupUser,
+                HeroSelection,
+            )
 
             await conn.run_sync(Base.metadata.create_all)
     except Exception as e:
