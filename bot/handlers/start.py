@@ -7,6 +7,7 @@ from bot.core.database import get_async_session
 from bot.repositories.beer_repo import BeerRepository
 from bot.repositories.user_repo import UserRepository
 from bot.core.schemas import UserCreate
+from bot.utils.decorators import private_chat_only
 from bot.utils.logger import setup_logger
 import pendulum
 
@@ -32,6 +33,7 @@ def get_command_keyboard():
 
 
 @router.message(CommandStart())
+@private_chat_only(response_probability=0.5)
 async def start_handler(message: types.Message, bot: Bot, state: FSMContext):
     try:
         async for session in get_async_session():
@@ -60,6 +62,7 @@ async def start_handler(message: types.Message, bot: Bot, state: FSMContext):
 
 
 @router.callback_query(lambda c: c.data == "cmd_start")
+@private_chat_only(response_probability=0.5)
 async def cmd_start_callback(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):
@@ -95,6 +98,7 @@ async def cmd_start_callback(
 
 
 @router.message(RegistrationStates.waiting_for_name)
+@private_chat_only(response_probability=0.5)
 async def process_name(message: types.Message, state: FSMContext):
     name = message.text.strip()
     if not (1 <= len(name) <= 50):
@@ -114,6 +118,7 @@ async def process_name(message: types.Message, state: FSMContext):
 
 
 @router.message(RegistrationStates.waiting_for_birth_date)
+@private_chat_only(response_probability=0.5)
 async def process_birth_date(message: types.Message, state: FSMContext):
     try:
         date_str = message.text.strip()

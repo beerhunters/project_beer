@@ -9,6 +9,7 @@ from bot.repositories.user_repo import UserRepository
 from bot.repositories.event_repo import EventRepository
 from bot.repositories.beer_repo import BeerRepository
 from bot.core.schemas import BeerChoiceCreate
+from bot.utils.decorators import private_chat_only
 from bot.utils.logger import setup_logger
 import pendulum
 from datetime import datetime, time, timedelta
@@ -145,6 +146,7 @@ async def get_all_upcoming_events(session, today):
 
 
 @router.message(Command("beer"))
+@private_chat_only(response_probability=0.5)
 async def beer_selection_handler(message: types.Message, bot: Bot, state: FSMContext):
     try:
         async for session in get_async_session():
@@ -188,6 +190,7 @@ async def beer_selection_handler(message: types.Message, bot: Bot, state: FSMCon
 
 
 @router.callback_query(lambda c: c.data.startswith("select_event_"))
+@private_chat_only(response_probability=0.5)
 async def select_event_callback(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):
@@ -304,6 +307,7 @@ async def select_event_callback(
 
 
 @router.message(BeerSelectionStates.waiting_for_location)
+@private_chat_only(response_probability=0.5)
 async def process_user_location(message: types.Message, bot: Bot, state: FSMContext):
     try:
         if not message.location:
@@ -379,6 +383,7 @@ async def process_user_location(message: types.Message, bot: Bot, state: FSMCont
 
 
 @router.callback_query(lambda c: c.data.startswith("beer_"))
+@private_chat_only(response_probability=0.5)
 async def beer_choice_callback(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):
@@ -494,6 +499,7 @@ async def beer_choice_callback(
 
 
 @router.callback_query(lambda c: c.data == "cancel_beer_selection")
+@private_chat_only(response_probability=0.5)
 async def cancel_beer_selection(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):
@@ -517,6 +523,7 @@ async def cancel_beer_selection(
 
 
 @router.callback_query(lambda c: c.data == "cmd_beer")
+@private_chat_only(response_probability=0.5)
 async def cmd_beer_callback(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):

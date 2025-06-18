@@ -8,6 +8,7 @@ from bot.core.models import Event
 from bot.repositories.user_repo import UserRepository
 from bot.repositories.event_repo import EventRepository
 from bot.core.schemas import EventCreate
+from bot.utils.decorators import private_chat_only
 from bot.utils.logger import setup_logger
 import pendulum
 import os
@@ -75,6 +76,7 @@ def get_notification_keyboard():
 
 
 @router.message(Command("create_event"))
+@private_chat_only(response_probability=0.5)
 async def create_event_handler(message: types.Message, bot: Bot, state: FSMContext):
     try:
         if message.chat.type != "private":
@@ -105,6 +107,7 @@ async def create_event_handler(message: types.Message, bot: Bot, state: FSMConte
 
 
 @router.message(EventCreationStates.waiting_for_name)
+@private_chat_only(response_probability=0.5)
 async def process_event_name(message: types.Message, bot: Bot, state: FSMContext):
     try:
         name = message.text.strip()
@@ -133,6 +136,7 @@ async def process_event_name(message: types.Message, bot: Bot, state: FSMContext
 
 
 @router.message(EventCreationStates.waiting_for_date)
+@private_chat_only(response_probability=0.5)
 async def process_event_date(message: types.Message, bot: Bot, state: FSMContext):
     try:
         date_str = message.text.strip()
@@ -178,6 +182,7 @@ async def process_event_date(message: types.Message, bot: Bot, state: FSMContext
 
 
 @router.message(EventCreationStates.waiting_for_time)
+@private_chat_only(response_probability=0.5)
 async def process_event_time(message: types.Message, bot: Bot, state: FSMContext):
     try:
         time_str = message.text.strip()
@@ -221,6 +226,7 @@ async def process_event_time(message: types.Message, bot: Bot, state: FSMContext
 
 
 @router.message(EventCreationStates.waiting_for_location)
+@private_chat_only(response_probability=0.5)
 async def process_event_location(message: types.Message, bot: Bot, state: FSMContext):
     try:
         input_str = message.text.strip()
@@ -277,6 +283,7 @@ async def process_event_location(message: types.Message, bot: Bot, state: FSMCon
 
 
 @router.message(EventCreationStates.waiting_for_location_name)
+@private_chat_only(response_probability=0.5)
 async def process_event_location_name(
     message: types.Message, bot: Bot, state: FSMContext
 ):
@@ -311,6 +318,7 @@ async def process_event_location_name(
 
 
 @router.message(EventCreationStates.waiting_for_description)
+@private_chat_only(response_probability=0.5)
 async def process_event_description(
     message: types.Message, bot: Bot, state: FSMContext
 ):
@@ -345,6 +353,7 @@ async def process_event_description(
 
 
 @router.message(EventCreationStates.waiting_for_image)
+@private_chat_only(response_probability=0.5)
 async def process_event_image(message: types.Message, bot: Bot, state: FSMContext):
     try:
         image_file_id = None
@@ -378,6 +387,7 @@ async def process_event_image(message: types.Message, bot: Bot, state: FSMContex
 
 
 @router.callback_query(lambda c: c.data in ["choice_yes", "choice_no"])
+@private_chat_only(response_probability=0.5)
 async def process_beer_choice(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):
@@ -413,6 +423,7 @@ async def process_beer_choice(
 
 
 @router.message(EventCreationStates.waiting_for_beer_options)
+@private_chat_only(response_probability=0.5)
 async def process_beer_options(message: types.Message, bot: Bot, state: FSMContext):
     try:
         input_str = message.text.strip()
@@ -669,6 +680,7 @@ async def send_event_notifications(bot: Bot, event):
 
 
 @router.callback_query(lambda c: c.data == "cancel_event_creation")
+@private_chat_only(response_probability=0.5)
 async def cancel_event_creation(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):

@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from bot.core.database import get_async_session
 from bot.repositories.event_repo import EventRepository
+from bot.utils.decorators import private_chat_only
 from bot.utils.logger import setup_logger
 from bot.handlers.event_creation import get_cancel_keyboard
 from bot.tasks.celery_app import app as celery_app
@@ -30,6 +31,7 @@ class EventDeletionStates(StatesGroup):
 
 
 @router.message(Command("delete_event"))
+@private_chat_only(response_probability=0.5)
 async def delete_event_handler(message: types.Message, bot: Bot, state: FSMContext):
     try:
         if message.chat.type != "private":
@@ -61,6 +63,7 @@ async def delete_event_handler(message: types.Message, bot: Bot, state: FSMConte
 
 
 @router.message(EventDeletionStates.waiting_for_event_id)
+@private_chat_only(response_probability=0.5)
 async def process_event_id(message: types.Message, bot: Bot, state: FSMContext):
     try:
         event_id_str = message.text.strip()
@@ -138,6 +141,7 @@ async def process_event_id(message: types.Message, bot: Bot, state: FSMContext):
 
 
 @router.callback_query(lambda c: c.data == "cancel_event_deletion")
+@private_chat_only(response_probability=0.5)
 async def cancel_event_deletion(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):

@@ -4,6 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.core.database import get_async_session
 from bot.repositories.user_repo import UserRepository
 from bot.repositories.beer_repo import BeerRepository
+from bot.utils.decorators import private_chat_only
 from bot.utils.logger import setup_logger
 import pendulum
 
@@ -24,6 +25,7 @@ def get_command_keyboard():
 
 
 @router.message(Command("profile"))
+@private_chat_only(response_probability=0.5)
 async def profile_handler(message: types.Message, bot: Bot):
     try:
         async for session in get_async_session():
@@ -90,6 +92,7 @@ async def profile_handler(message: types.Message, bot: Bot):
 
 
 @router.callback_query(lambda c: c.data == "cmd_profile")
+@private_chat_only(response_probability=0.5)
 async def cmd_profile_callback(callback_query: types.CallbackQuery, bot: Bot):
     try:
         await callback_query.answer()

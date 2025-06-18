@@ -5,6 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.core.database import get_async_session
 from bot.repositories.event_repo import EventRepository
+from bot.utils.decorators import private_chat_only
 from bot.utils.logger import setup_logger
 from bot.handlers.event_creation import get_cancel_keyboard
 import pendulum
@@ -105,6 +106,7 @@ async def send_events_list(
 
 
 @router.message(Command("events_list"))
+@private_chat_only(response_probability=0.5)
 async def events_list_handler(message: types.Message, bot: Bot, state: FSMContext):
     try:
         if message.chat.type != "private":
@@ -132,6 +134,7 @@ async def events_list_handler(message: types.Message, bot: Bot, state: FSMContex
 @router.callback_query(
     lambda c: c.data.startswith("next_page_") or c.data.startswith("prev_page_")
 )
+@private_chat_only(response_probability=0.5)
 async def handle_pagination(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):
@@ -209,6 +212,7 @@ async def handle_pagination(
 
 
 @router.callback_query(lambda c: c.data.startswith("delete_event_"))
+@private_chat_only(response_probability=0.5)
 async def initiate_delete_event(
     callback_query: types.CallbackQuery, bot: Bot, state: FSMContext
 ):
@@ -254,5 +258,6 @@ async def initiate_delete_event(
 
 
 @router.message(Command("test_error"))
+@private_chat_only(response_probability=0.5)
 async def test_error_handler(message: types.Message):
     raise ValueError("Test error for error handler")
