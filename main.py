@@ -159,7 +159,7 @@ async def main():
     try:
         load_dotenv()
         bot_token = os.getenv("BOT_TOKEN")
-        group_chat_id = os.getenv("FOR_LOGS")  # Используем FOR_LOGS, как в вашем коде
+        group_chat_id = os.getenv("FOR_LOGS")
         if not bot_token:
             logger.error("BOT_TOKEN not found in environment variables. Exiting...")
             return
