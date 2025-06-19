@@ -4,27 +4,29 @@ from bot.core.database import get_async_session
 from bot.repositories.group_user_repo import GroupUserRepository
 from bot.utils.decorators import group_chat_only
 from bot.utils.logger import setup_logger
+from bot.utils.messages import (
+    HERO_COMMAND_SUCCESS_MESSAGE,
+    HERO_COMMAND_NO_HERO_MESSAGE,
+    HERO_COMMAND_ERROR_MESSAGE,
+    HERO_COMMAND_GROUP_ALREADY_REGISTERED,
+    HERO_COMMAND_GROUP_ADDED_MESSAGE,
+    HERO_TODAY_NO_HERO_MESSAGE,
+    HERO_TODAY_ERROR_MESSAGE,
+    BECOME_HERO_GROUP_NOT_REGISTERED,
+    BECOME_HERO_USER_NOT_FOUND_MESSAGE,
+    BECOME_HERO_BUTTON_TEXT,
+    BECOME_HERO_USER_REGISTERED_MESSAGE,
+    BECOME_HERO_USER_ALREADY_CANDIDATE_MESSAGE,
+    BECOME_HERO_ERROR_MESSAGE,
+    HERO_TOP_MESSAGE,
+    HERO_TOP_NO_HEROES_MESSAGE,
+    HERO_TOP_ERROR_MESSAGE,
+)
 import pendulum
 import asyncio
 
 logger = setup_logger(__name__)
 router = Router()
-
-# Текстовые сообщения
-HERO_COMMAND_SUCCESS_MESSAGE = "🏆 Герой дня: @{username}!"
-HERO_COMMAND_NO_HERO_MESSAGE = "❌ Герой дня ещё не выбран. Ждите выборов в 10:00!"
-HERO_COMMAND_ERROR_MESSAGE = "❌ Произошла ошибка. Попробуйте позже."
-GROUP_ADDED_MESSAGE = (
-    "👋 Группа зарегистрирована! Теперь я буду выбирать Героя Дня каждый день в 10:00!\n"
-    "Пользователи могут зарегистрироваться как кандидаты с помощью /become_hero."
-)
-USER_REGISTERED_MESSAGE = (
-    "✅ Вы зарегистрированы как кандидат на Героя Дня! Ждите своего звездного часа!"
-)
-USER_ALREADY_CANDIDATE_MESSAGE = "ℹ️ Вы уже зарегистрированы как кандидат на Героя Дня!"
-USER_NOT_FOUND_MESSAGE = (
-    "❌ Вы не зарегистрированы в системе. Нажмите кнопку ниже, чтобы начать!"
-)
 
 
 @router.message(Command("hero"))
@@ -44,13 +46,13 @@ async def hero_command_handler(message: types.Message, bot: Bot):
                 await GroupUserRepository.add_group(session, chat_id, chat_title)
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=GROUP_ADDED_MESSAGE,
+                    text=HERO_COMMAND_GROUP_ADDED_MESSAGE,
                 )
                 logger.info(f"Group registered in database: chat_id={chat_id}")
             else:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text="✅ Группа уже зарегистрирована!",
+                    text=HERO_COMMAND_GROUP_ALREADY_REGISTERED,
                 )
                 logger.debug(f"Group already registered: chat_id={chat_id}")
     except Exception as e:
@@ -83,13 +85,13 @@ async def hero_today_handler(message: types.Message, bot: Bot):
             else:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=HERO_COMMAND_NO_HERO_MESSAGE,
+                    text=HERO_TODAY_NO_HERO_MESSAGE,
                 )
     except Exception as e:
         logger.error(f"Error in hero_today handler: {e}", exc_info=True)
         await bot.send_message(
             chat_id=chat_id,
-            text=HERO_COMMAND_ERROR_MESSAGE,
+            text=HERO_TODAY_ERROR_MESSAGE,
         )
 
 
@@ -108,7 +110,7 @@ async def become_hero_handler(message: types.Message, bot: Bot):
             if not group:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text="❌ Группа не зарегистрирована. Сначала выполните /hero.",
+                    text=BECOME_HERO_GROUP_NOT_REGISTERED,
                 )
                 return
 
@@ -122,12 +124,12 @@ async def become_hero_handler(message: types.Message, bot: Bot):
                 deep_link = f"t.me/{bot_username}?start=group_{chat_id}"
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=USER_NOT_FOUND_MESSAGE,
+                    text=BECOME_HERO_USER_NOT_FOUND_MESSAGE,
                     reply_markup=types.InlineKeyboardMarkup(
                         inline_keyboard=[
                             [
                                 types.InlineKeyboardButton(
-                                    text="Начать с ботом", url=deep_link
+                                    text=BECOME_HERO_BUTTON_TEXT, url=deep_link
                                 )
                             ]
                         ]
@@ -140,17 +142,17 @@ async def become_hero_handler(message: types.Message, bot: Bot):
 
             # Регистрируем пользователя как кандидата
             is_new = await GroupUserRepository.register_candidate(
-                session, telegram_id, chat_id, name, username
+                session, chat_id, user.id, telegram_id, username
             )
             if is_new:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=USER_REGISTERED_MESSAGE,
+                    text=BECOME_HERO_USER_REGISTERED_MESSAGE,
                 )
             else:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=USER_ALREADY_CANDIDATE_MESSAGE,
+                    text=BECOME_HERO_USER_ALREADY_CANDIDATE_MESSAGE,
                 )
             logger.info(
                 f"User {telegram_id} processed as hero candidate in group {chat_id}"
@@ -159,5 +161,42 @@ async def become_hero_handler(message: types.Message, bot: Bot):
         logger.error(f"Error in become_hero handler: {e}", exc_info=True)
         await bot.send_message(
             chat_id=chat_id,
-            text="❌ Ошибка при регистрации. Попробуйте позже.",
+            text=BECOME_HERO_ERROR_MESSAGE,
+        )
+
+
+@router.message(Command("hero_top"))
+@group_chat_only(response_probability=1.0)
+async def hero_top_handler(message: types.Message, bot: Bot):
+    try:
+        chat_id = message.chat.id
+        async for session in get_async_session():
+            group = await GroupUserRepository.get_group_by_chat_id(session, chat_id)
+            if not group:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=HERO_TOP_NO_HEROES_MESSAGE,
+                )
+                return
+            top_heroes = await GroupUserRepository.get_hero_top(session, group.id)
+            if not top_heroes:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=HERO_TOP_NO_HEROES_MESSAGE,
+                )
+                return
+            top_list = "\n".join(
+                f"{i+1}. @{row['username'] or row['name']} - {row['hero_count']} раз(а)"
+                for i, row in enumerate(top_heroes)
+            )
+            await bot.send_message(
+                chat_id=chat_id,
+                text=HERO_TOP_MESSAGE.format(top_list=top_list),
+            )
+            logger.info(f"Displayed top-10 heroes for group {chat_id}")
+    except Exception as e:
+        logger.error(f"Error in hero_top handler: {e}", exc_info=True)
+        await bot.send_message(
+            chat_id=chat_id,
+            text=HERO_TOP_ERROR_MESSAGE,
         )
